@@ -1,10 +1,20 @@
 import pygame
-
-from pygskin.input_handler import InputHandler
-from pygskin.interfaces import Drawable
-from pygskin.interfaces import Updatable
+from pygskin import pubsub
+from pygskin.input import InputHandler
 
 
-class Screen(pygame.Surface, Updatable, Drawable, InputHandler):
-    def update(self, dt: float) -> None:
-        super().update(dt)
+class Screen(InputHandler):
+    def draw(self, surface: pygame.Surface) -> list[pygame.Rect]:
+        return []
+
+    @property
+    def enter(self) -> pubsub.Message:
+        if not hasattr(self, "_enter"):
+            setattr(self, "_enter", pubsub.Message())
+        return getattr(self, "_enter")
+
+    @property
+    def exit(self) -> pubsub.Message:
+        if not hasattr(self, "_exit"):
+            setattr(self, "_exit", pubsub.Message())
+        return getattr(self, "_exit")

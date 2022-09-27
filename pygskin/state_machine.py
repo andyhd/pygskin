@@ -24,7 +24,8 @@ class Transition(Generic[Input, State]):
         self.triggering_input = input
         self.condition = condition
         self.trigger = pubsub.Message()
-        self.trigger.subscribe(callback)
+        if callback:
+            self.trigger.subscribe(callback)
 
     def is_triggered_by(self, input: Input) -> bool:
         return input == self.triggering_input or (

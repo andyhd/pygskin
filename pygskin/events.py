@@ -25,12 +25,9 @@ class Event:
 
     def __eq__(self, other: Any) -> bool:
         return (
-            isinstance(other, (Event, pygame.event.EventType))
+            isinstance(other, (Event, pygame.event.Event, pygame.event.EventType))
             and self.type == other.type
-            and (
-                self.__dict__.items() >= other.__dict__.items()
-                or self.__dict__.items() <= other.__dict__.items()
-            )
+            and self.__dict__.items() <= other.__dict__.items()
         )
 
     def __hash__(self):
