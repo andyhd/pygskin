@@ -25,7 +25,7 @@ class Event:
 
     def __eq__(self, other: Any) -> bool:
         return (
-            isinstance(other, (Event, pygame.event.Event))
+            isinstance(other, (Event, pygame.event.EventType))
             and self.type == other.type
             and (
                 self.__dict__.items() >= other.__dict__.items()
