@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sys
 from inspect import Signature
 from typing import Callable
 
@@ -29,13 +28,18 @@ class InputHandler(Updatable):
 
     def get_input_for_event(self, event: Event) -> Input | None:
         input = next(
-            (input for ev, input in self.event_map.items() if ev == event), None
+            (
+                input
+                for ev, input in getattr(self, "event_map", {}).items()
+                if ev == event
+            ),
+            None,
         )
         if input is None:
             if isinstance(event, Timer):
                 input = Input(self.timer, event)
             elif isinstance(event, Quit):
-                sys.exit(0)
+                getattr(self, "quit", lambda _: None)()
         if isinstance(input, str):
             input = Input(input)
         return input
