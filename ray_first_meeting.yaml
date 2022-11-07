@@ -1,0 +1,117 @@
+---
+location: bridge
+
+characters:
+  - sheriff
+  - reyes
+  - ray
+
+init_vars:
+  asked_about_food: 0
+  sheriff_hostility: 0
+  talked_to_sheriff: false
+
+start:
+  - set_vars:
+      talked_to_sheriff: true
+  - sheriff: |
+      Howdee. The name's Sheriff Crook, local sheriff of Thimbleweed Park.
+      I don't remember calling the feds-a-renos.
+      That's what you are? Feds?
+      Hard to miss the government issue suits.
+  - next_state: main
+
+main:
+  - prompt:
+      - crap: Damn straight we're the feds
+        when:
+          - not _seen
+      - crap: Cut the Mayberry crap, we're taking over this case
+      - rot: How long were you going to let that body rot in the river?
+      - hi: I'm agent Ray and this is... uh... my partner
+      - eat: Know any place that serves good pie?
+        when:
+          - asked_about_food == 0
+      - eat: Know any place that serves good meatloaf?
+        when:
+          - asked_about_food == 1
+      - eat: Know any place that serves good hamburgers?
+        when:
+          - asked_about_food == 2
+      - eat: Know any place that serves good hotdogs?
+        when:
+          - asked_about_food == 3
+      - shutdown: Why don't you shut the place down?
+        when:
+          - asked_about_food == 4
+
+eat:
+  - sheriff: |
+      You could try the Diner down the street, but no one eats there...
+  - pause: 0.5
+  - sheriff: |
+      *whispering* Botulism.
+    when:
+      - asked_about_food == 0
+  - sheriff: |
+      *whispering* E.coli.
+    when:
+      - asked_about_food == 1
+  - sheriff: |
+      *whispering* Plague.
+    when:
+      - asked_about_food == 2
+  - sheriff: |
+      *whispering* Butylated Hydroxytoluene.
+    when:
+      - asked_about_food == 3
+  - set_vars:
+      asked_about_food: asked_about_food + 1
+  - next_state: main
+
+shutdown:
+  - sheriff: |
+      Why would I do that? I get a 5% law enforcement discount.
+  - next_state: main
+
+next:
+  - sheriff: |
+      Looks like you heard about our little murder-reno out by the bridge.
+  - reyes: |
+      There's nothing 'little' about murder, sir.
+  - pause: 0.5
+  - ray: |
+      *sigh*
+      Ignore him... he's new.
+  - pause: 0.5
+  - sheriff: |
+      No sense in wasting everyone's time-a-reno.
+      This cut-scene is starting to get long and it's only going to get longer.
+      Let's find the coroner and get you on your way.
+  - sheriff:
+      animation: face_front
+  - sheriff: |
+      Wrestling starts at eight.
+  - reyes: |
+      I hope he's talking about on TV.
+  - next_state: end
+
+rot:
+  - sheriff: |
+      The river is so chocked full of chemicals from the old pillow factory...
+      ...it's better off there than in a tub of formaldehyde.
+  - sheriff:
+      animation: chuckle
+  - next_state: next
+
+crap:
+  - set_vars:
+      sheriff_hostility: sheriff_hostility + 1
+  - sheriff: |
+      Whoa... hold your horse-a-renos, no need to get snippy.
+  - next_state: next
+
+hi:
+  - sheriff: |
+      Nice to meet you, agent-a-renos.
+  - next_state: next

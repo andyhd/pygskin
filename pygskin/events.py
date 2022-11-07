@@ -4,6 +4,7 @@ import sys
 from inspect import Parameter
 from inspect import Signature
 from typing import Any
+from typing import Type
 
 import pygame
 
@@ -54,20 +55,27 @@ class Event:
         ]
 
     @staticmethod
-    def make_subclasses(**event_types: list[Parameter]) -> None:
+    def make_subclass(name: str, event_type: int, params: list[Parameter]) -> Type:
+        sig = Signature(params + [Parameter("kwargs", Parameter.VAR_KEYWORD)])
+        subclass = type(name, (Event,), {"type": event_type, "signature": sig})
+        Event.CLASSES[event_type] = subclass
+        return subclass
+
+    @staticmethod
+    def make_pygame_event_classes(**event_types: list[Parameter]) -> None:
         for name, params in event_types.items():
-            event_type = getattr(pygame, name.upper())
-            sig = Signature(params + [Parameter("kwargs", Parameter.VAR_KEYWORD)])
-            subclass = type(name, (Event,), {"type": event_type, "signature": sig})
-            Event.CLASSES[event_type] = subclass
-            setattr(sys.modules[__name__], name, subclass)
+            setattr(
+                sys.modules[__name__],
+                name,
+                Event.make_subclass(name, getattr(pygame, name.upper()), params),
+            )
 
 
 def field(name: str, default: Any = Parameter.empty):
     return Parameter(name, Parameter.POSITIONAL_OR_KEYWORD, default=default)
 
 
-Event.make_subclasses(
+Event.make_pygame_event_classes(
     KeyDown=[field("key"), field("mod", default=0)],
     Quit=[],
 )

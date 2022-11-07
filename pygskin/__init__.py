@@ -6,6 +6,8 @@ with redirect_stdout(None):
 
 from pygskin.assets import Image, Sound, Music  # noqa
 
+from pygskin.dialogue import Dialogue  # noqa
+
 from pygskin.events import Event  # noqa
 
 for class_ in Event.CLASSES.values():

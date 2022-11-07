@@ -40,10 +40,25 @@ class StateMachine(Generic[Input, State]):
             state: [Transition(*t) for t in transitions]
             for state, transitions in transition_table.items()
         }
-        self.initial_state = initial_state
-        self.state = self.initial_state
 
-    def next_state(self, input: Input) -> str:
+        self.enter = pubsub.Message()
+        self.exit = pubsub.Message()
+
+        self.initial_state = initial_state
+        self._state = self.initial_state
+        self.enter(self._state)
+
+    @property
+    def state(self) -> State:
+        return self._state
+
+    @state.setter
+    def state(self, state: State) -> None:
+        self.exit(self._state)
+        self._state = state
+        self.enter(self._state)
+
+    def next_state(self, input: Input) -> State:
         for t in self.transition_table[self.state]:
             if t.is_triggered_by(input) and (
                 not callable(t.condition) or t.condition(input)

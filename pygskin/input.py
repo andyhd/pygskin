@@ -12,15 +12,13 @@ from pygskin.timer import Timer
 class Input:
     def __init__(self, handler: Callable, *args, **kwargs) -> None:
         self.handler = handler
-
-        params = Signature.from_callable(handler).bind(*args, **kwargs)
-        params.apply_defaults()
-
-        self.args = params.args
-        self.kwargs = params.kwargs
+        self.args = args
+        self.kwargs = kwargs
 
     def execute(self) -> None:
-        self.handler(*self.args, **self.kwargs)
+        params = Signature.from_callable(self.handler).bind(*self.args, **self.kwargs)
+        params.apply_defaults()
+        self.handler(*params.args, **params.kwargs)
 
 
 class InputHandler(Updatable):
@@ -41,7 +39,7 @@ class InputHandler(Updatable):
             elif isinstance(event, Quit):
                 getattr(self, "quit", lambda _: None)()
         if isinstance(input, str):
-            input = Input(input)
+            input = Input(getattr(self, input))
         return input
 
     def get_inputs(self) -> list[Input]:
