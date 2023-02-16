@@ -24,12 +24,15 @@ class Event:
         self.__dict__.update(params.arguments)
         self.__dict__.update(kwargs)
 
-    def __eq__(self, other: Any) -> bool:
+    def match(self, other: Any) -> bool:
         return (
             isinstance(other, (Event, pygame.event.Event, pygame.event.EventType))
             and self.type == other.type
             and self.__dict__.items() <= other.__dict__.items()
         )
+
+    def __eq__(self, other: Any) -> bool:
+        return self.match(other)
 
     def __hash__(self):
         return hash((self.type, repr(self.__dict__)))

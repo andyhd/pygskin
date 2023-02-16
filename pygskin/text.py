@@ -23,7 +23,7 @@ class Text(pygame.sprite.Sprite):
     DEFAULTS = {
         "align": "LEFT",
         "antialias": True,
-        "background": pygame.Color("black"),
+        "background": None,
         "bold": False,
         "color": pygame.Color("white"),
         "font_name": None,
@@ -52,6 +52,7 @@ class Text(pygame.sprite.Sprite):
     def image(self) -> pygame.Surface:
         if not hasattr(self, "_image"):
             lines = self._wrap(self.text, self.config["wrap_width"])
+            bg_color = self.config["background"]
             num_lines = len(lines)
             if num_lines == 0:
                 image = pygame.Surface((0, 0)).convert_alpha()
@@ -60,15 +61,15 @@ class Text(pygame.sprite.Sprite):
                     lines[0].text,
                     self.config["antialias"],
                     self.config["color"],
-                    self.config["background"],
-                )
+                    bg_color,
+                ).convert_alpha()
                 self.rect.size = lines[0].rect.size
             else:
                 self.rect.width = max(line.rect.width for line in lines)
                 self.rect.height = sum(line.rect.height for line in lines)
                 image = pygame.Surface(self.rect.size).convert_alpha()
-                if self.config["background"]:
-                    image.fill(self.config["background"])
+                if bg_color:
+                    image.fill(bg_color)
                 align = Align[self.config["align"].upper()]
                 for line in lines:
                     x_offset = round(align.value * (self.rect.width - line.rect.width))
