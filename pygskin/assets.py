@@ -3,7 +3,6 @@ import pygame
 
 
 class Asset:
-
     class NotRecognised(Exception):
         pass
 
@@ -48,11 +47,13 @@ class Sound(Asset):
         self.volume = volume
 
     def load(self) -> None:
+        if pygame.mixer and not pygame.mixer.get_init():
+            pygame.mixer.init()
         if not self.sound and pygame.mixer and pygame.mixer.get_init():
             self.sound = pygame.mixer.Sound(self.filename)
             self.sound.set_volume(self.volume)
 
-    def play(self) -> None:
+    def play(self, *args, **kwargs) -> None:
         if not self.sound:
             self.load()
 

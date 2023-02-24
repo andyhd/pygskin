@@ -1,34 +1,45 @@
 import sys
-from contextlib import redirect_stdout
 
-with redirect_stdout(None):
-    import pygame  # noqa
-
-from pygskin.assets import Image, Sound, Music  # noqa
-
-from pygskin.dialogue import Dialogue  # noqa
-
-from pygskin.direction import Direction  # noqa
-
-from pygskin.events import Event  # noqa
+from pygskin.assets import Image
+from pygskin.assets import Music
+from pygskin.assets import Sound
+from pygskin.dialogue import Dialogue
+from pygskin.direction import Direction
+from pygskin.events import Event
+from pygskin.input import Input
+from pygskin.input import InputHandler
+from pygskin.interfaces import Drawable
+from pygskin.interfaces import Updatable
+from pygskin.pubsub import message
+from pygskin.screen import Screen
+from pygskin.spritesheet import CachedSpritesheet
+from pygskin.spritesheet import Spritesheet
+from pygskin.state_machine import StateMachine
+from pygskin.text import Text
+from pygskin.timer import Timer
+from pygskin.window import Window
 
 for class_ in Event.CLASSES.values():
     setattr(sys.modules[__name__], class_.__name__, class_)
 
-from pygskin.input import Input, InputHandler  # noqa
-
-from pygskin.interfaces import Drawable, Updatable  # noqa
-
-from pygskin.pubsub import Message  # noqa
-
-from pygskin.screen import Screen  # noqa
-
-from pygskin.spritesheet import Spritesheet, CachedSpritesheet  # noqa
-
-from pygskin.state_machine import StateMachine  # noqa
-
-from pygskin.text import Text  # noqa
-
-from pygskin.timer import Timer  # noqa
-
-from pygskin.window import Window  # noqa
+__all__ = [
+    "Image",
+    "Music",
+    "Sound",
+    "Dialogue",
+    "Direction",
+    "Event",
+    "Input",
+    "InputHandler",
+    "Drawable",
+    "Updatable",
+    "message",
+    "Screen",
+    "CachedSpritesheet",
+    "Spritesheet",
+    "StateMachine",
+    "Text",
+    "Timer",
+    "Window",
+    *[class_.__name__ for class_ in Event.CLASSES.values()],
+]

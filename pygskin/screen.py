@@ -1,4 +1,5 @@
 import pygame
+
 from pygskin import pubsub
 from pygskin.input import InputHandler
 
@@ -7,14 +8,10 @@ class Screen(InputHandler):
     def draw(self, surface: pygame.Surface) -> list[pygame.Rect]:
         return []
 
-    @property
-    def enter(self) -> pubsub.Message:
-        if not hasattr(self, "_enter"):
-            setattr(self, "_enter", pubsub.Message())
-        return getattr(self, "_enter")
+    @pubsub.message
+    def enter(self) -> None:
+        pass
 
-    @property
-    def exit(self) -> pubsub.Message:
-        if not hasattr(self, "_exit"):
-            setattr(self, "_exit", pubsub.Message())
-        return getattr(self, "_exit")
+    @pubsub.message
+    def exit(self) -> None:
+        pass

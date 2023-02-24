@@ -12,9 +12,9 @@ from pygame.sprite import collide_rect
 from pygskin import CachedSpritesheet
 from pygskin import Direction
 from pygskin import KeyDown
-from pygskin import Message
 from pygskin import Sound
 from pygskin import Spritesheet
+from pygskin import message
 from pygskin.ecs import Container
 from pygskin.ecs import Entity
 from pygskin.ecs import System
@@ -96,24 +96,24 @@ class Flags(dict[str, bool]):
 
 
 class Snake(Entity):
-    def __init__(self, pos, facing, spritesheet):
+    def __init__(self, pos, facing, length, spritesheet):
+        rect = pygame.Rect(*pos, *Config.CELL_SIZE)
         self.body = Body(
             [
                 Segment(
-                    pygame.Rect(*pos, *Config.CELL_SIZE),
+                    rect.move(*(facing.vector * -i)),
                     facing,
                     spritesheet,
-                    is_head=True,
-                    is_tail=True,
+                    is_head=i == 0,
+                    is_tail=i == length - 1,
                 )
+                for i in range(length)
             ]
         )
         self.flags = Flags(
             alive=True,
             is_eating=False,
         )
-        self.death = Message()
-        self.death.subscribe(self.die)
 
     @property
     def head(self):
@@ -144,8 +144,13 @@ class Snake(Entity):
         if direction.axis != self.head.direction.axis:
             self.head.turning_to = direction
 
-    def die(self):
+    @message
+    def die(self, *_):
         self.Flags["alive"] = False
+
+    @message
+    def eat(self, *_):
+        self.Flags["is_eating"] = True
 
 
 class Food(Sprite, Entity):
@@ -154,7 +159,6 @@ class Food(Sprite, Entity):
         self.image = spritesheet[(2, 3)]
         self.rect = self.image.get_rect()
         DisplaySystem.sprite_group.add(self)
-        self.eaten = Message()
 
     def place(self, world):
         available_cells = list(
@@ -188,9 +192,8 @@ class Eating(System):
             if snake.Flags["is_eating"]:
                 continue
             if collide_rect(snake.head, food):
-                food.eaten()
+                snake.eat(food)
                 food.place(world)
-                snake.Flags["is_eating"] = True
 
 
 class Collisions(System):
@@ -204,7 +207,7 @@ class Collisions(System):
                 if segment != snake.head
             ):
                 if snake.Flags["alive"]:
-                    snake.death()
+                    snake.die()
 
 
 class World(dict):
@@ -215,10 +218,9 @@ class World(dict):
         self[name] = value
 
 
-class Game(Container, Entity):
+class Game(Entity):
     def __init__(self):
         super().__init__()
-        pygame.init()
 
         self.running = True
 
@@ -231,7 +233,9 @@ class Game(Container, Entity):
             ),
         )
 
-        self.systems = [
+        self.container = Container()
+
+        self.container.systems = [
             EventSystem(),
             GrowShrinkSnakes(fps=Config.FPS),
             Eating(),
@@ -247,7 +251,7 @@ class Game(Container, Entity):
 
         spritesheet = SnakeSprites()
 
-        player = Snake(Config.CELL_SIZE, Direction.RIGHT, spritesheet)
+        player = Snake(Config.CELL_SIZE, Direction.RIGHT, 3, spritesheet)
         player.event_map = EventMap(
             {
                 KeyDown(pygame.K_LEFT): partial(player.turn, Direction.LEFT),
@@ -256,31 +260,33 @@ class Game(Container, Entity):
                 KeyDown(pygame.K_DOWN): partial(player.turn, Direction.DOWN),
             }
         )
-        for _ in range(2):
-            player.grow()
         self.world.snakes.append(player)
 
         die_sound = Sound(Path(__file__).parent / "audio/die.wav")
         eat_sound = Sound(Path(__file__).parent / "audio/eat.wav")
 
-        player.death.subscribe(die_sound.play)
+        player.die.subscribe(die_sound.play)
+        player.eat.subscribe(eat_sound.play)
 
         food = Food(spritesheet)
         food.place(self.world)
-        food.eaten.subscribe(eat_sound.play)
 
-        self.entities = [
+        self.container.entities = [
             self,
             food,
             player,
         ]
 
-    def run(self):
-        while self.running:
-            self.update(world=self.world)
+    def update(self):
+        if self.running:
+            self.container.update(world=self.world)
 
     def quit(self):
         self.running = False
+
+    def run(self):
+        while self.running:
+            self.update()
 
 
 if __name__ == "__main__":
