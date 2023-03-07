@@ -36,6 +36,8 @@ class Text(pygame.sprite.Sprite):
     def __init__(self, text: str, **config) -> None:
         super().__init__()
         self.text = text
+        if not pygame.font.get_init():
+            pygame.font.init()
         self.config = dict(**Text.DEFAULTS)
         self.config.update(config)
         self.font = pygame.font.Font(

@@ -1,6 +1,7 @@
 import pygame
 
-from pygskin.ecs import Entity, System
+from pygskin.ecs import Entity
+from pygskin.ecs import System
 from pygskin.ecs.components.tick import TickHandler
 
 
@@ -16,12 +17,16 @@ class TickSystem(System):
         self.ms_since_last_tick = self.clock.tick(self.fps)
         return self.ms_since_last_tick
 
+    def should_update(self, **kwargs) -> bool:
+        return True
+
     def update(self, entities, **kwargs) -> None:
         self.tick()
-        super().update(entities, ms_since_last_tick=self.ms_since_last_tick, **kwargs)
+        if self.should_update(**kwargs):
+            super().update(entities, **kwargs)
 
-    def update_entity(self, entity, ms_since_last_tick=0, **kwargs) -> None:
-        entity.TickHandler.on_tick(ms_since_last_tick)
+    def update_entity(self, entity, **kwargs) -> None:
+        entity.TickHandler.on_tick(self.ms_since_last_tick)
 
 
 class IntervalSystem(TickSystem):
@@ -31,11 +36,9 @@ class IntervalSystem(TickSystem):
         super().__init__(**options)
         self.timer = self.interval
 
-    def tick(self):
-        self.timer -= super().tick()
-
-    def update(self, entities, **kwargs):
-        self.tick()
+    def should_update(self, **kwargs) -> bool:
+        self.timer -= self.ms_since_last_tick
         if self.timer <= 0:
             self.timer = self.interval
-            super().update(entities, **kwargs)
+            return True
+        return False

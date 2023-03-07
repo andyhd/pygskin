@@ -1,5 +1,8 @@
 from __future__ import annotations
-from typing import Any, Type, Callable
+
+from typing import Any
+from typing import Callable
+from typing import Type
 
 
 class Entity:
@@ -18,6 +21,7 @@ class Entity:
                 except AttributeError:
                     return False
             return True
+
         return check
 
 

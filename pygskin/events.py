@@ -8,7 +8,6 @@ from typing import Type
 
 import pygame
 
-
 EventClass = type["Event"]
 
 
@@ -80,5 +79,9 @@ def field(name: str, default: Any = Parameter.empty):
 
 Event.make_pygame_event_classes(
     KeyDown=[field("key"), field("mod", default=0)],
+    KeyUp=[field("key"), field("mod", default=0)],
+    MouseButtonDown=[field("button", default=1)],
+    MouseButtonUp=[field("button", default=1)],
+    MouseMotion=[field("buttons", default=(0, 0, 0))],
     Quit=[],
 )

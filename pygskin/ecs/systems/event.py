@@ -1,6 +1,5 @@
-import pygame
-
-from pygskin.ecs import Entity, System
+from pygskin.ecs import Entity
+from pygskin.ecs import System
 from pygskin.ecs.components.event import EventMap
 from pygskin.events import Event
 
@@ -22,4 +21,4 @@ class EventSystem(System):
         for event in events:
             for ev, action in entity.EventMap.items():
                 if ev.match(event):
-                    action()
+                    action(event)
