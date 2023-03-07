@@ -31,6 +31,7 @@ class Text(pygame.sprite.Sprite):
         "italic": False,
         "underline": False,
         "wrap_width": 0,
+        "padding": None,
     }
 
     def __init__(self, text: str, **config) -> None:
@@ -76,6 +77,7 @@ class Text(pygame.sprite.Sprite):
                 for line in lines:
                     x_offset = round(align.value * (self.rect.width - line.rect.width))
                     image.blit(line.image, (line.rect.x + x_offset, line.rect.y))
+            image = self._pad(image)
             setattr(self, "_image", image)
         return getattr(self, "_image")
 
@@ -84,6 +86,7 @@ class Text(pygame.sprite.Sprite):
         line_height = self.config["line_height"]
         config = dict(**self.config)
         config["wrap_width"] = 0
+        config["padding"] = 0
         while text:
             line, _, text = text.partition("\n")
             line, remainder = self._break_line(line, width)
@@ -113,3 +116,28 @@ class Text(pygame.sprite.Sprite):
 
     def _breaking(self, char: str) -> bool:
         return char == " "
+
+    def _pad(self, image: pygame.Surface) -> pygame.Surface:
+        padding = self.config["padding"]
+        if padding:
+            try:
+                padding = iter(padding)
+                pad_bottom = pad_top = next(padding)
+                pad_left = pad_right = next(padding)
+                pad_bottom = next(padding)
+                pad_right = next(padding)
+            except StopIteration:
+                pass
+            padding = pygame.Surface(
+                (
+                    self.rect.width + pad_left + pad_right,
+                    self.rect.height + pad_top + pad_bottom,
+                )
+            ).convert_alpha()
+            bg_color = self.config["background"]
+            if bg_color:
+                padding.fill(bg_color)
+            padding.blit(image, (pad_left, pad_top))
+            image = padding
+            self.rect = image.get_rect()
+        return image

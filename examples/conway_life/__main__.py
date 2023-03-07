@@ -4,8 +4,7 @@ import random
 
 import pygame
 
-from pygskin.ecs import Entity
-from pygskin.ecs import System
+from pygskin import ecs
 from pygskin.ecs.components import EventMap
 from pygskin.ecs.systems import DisplaySystem
 from pygskin.ecs.systems import EventSystem
@@ -17,17 +16,20 @@ from pygskin.events import MouseMotion
 from pygskin.text import Text
 
 
-class World(Entity, pygame.sprite.Sprite):
+class World(ecs.Entity, pygame.sprite.Sprite):
     def __init__(self, size: tuple[int, int], cell_size: tuple[int, int]) -> None:
         super().__init__()
         (self.width, self.height) = (w, h) = size
         (self.cell_width, self.cell_height) = (cw, ch) = cell_size
         self.rect = pygame.Rect((0, 0), (w * cw, h * ch))
-        self.cells = [[False for _ in range(w)] for _ in range(h)]
+        self.cells = self.empty()
         self.surface = pygame.Surface(self.rect.size)
 
+    def empty(self) -> None:
+        return [[False for _ in range(self.width)] for _ in range(self.height)]
+
     def next_generation(self) -> None:
-        next_gen = [[False for _ in range(self.width)] for _ in range(self.height)]
+        next_gen = self.empty()
         for y, row in enumerate(self.cells):
             for x, alive in enumerate(row):
                 num_neighbours = self.count_neighbours(x, y)
@@ -71,12 +73,13 @@ class GenerationSystem(IntervalSystem):
             return False
         return super().should_update()
 
-    def update_entity(self, entity: Entity, **state) -> None:
+    def update_entity(self, entity: ecs.Entity, **state) -> None:
         entity.next_generation()
 
 
-class Game(Entity):
+class Game(ecs.Entity, ecs.Container):
     def __init__(self) -> None:
+        super().__init__()
         self.world = World((160, 160), cell_size=(5, 5))
         self.world.add(DisplaySystem.sprite_group)
 
@@ -87,16 +90,33 @@ class Game(Entity):
             "world": self.world,
         }
 
-        self.systems: list[System] = [
-            DisplaySystem(
-                size=self.world.rect.size,
-                title="Conway's Life",
-            ),
-            EventSystem(),
-            GenerationSystem(fps=100),
-        ]
+        self.systems.extend(
+            [
+                DisplaySystem(
+                    size=self.world.rect.size,
+                    title="Conway's Life",
+                ),
+                EventSystem(),
+                GenerationSystem(fps=100),
+            ]
+        )
 
-        self.pause_label = Text("PAUSED")
+        self.pause_label = Text(
+            (
+                "PAUSED\n"
+                "\n"
+                "P   - Toggle pause\n"
+                "R   - Randomise world\n"
+                "G   - Add a Gosper Gun\n"
+                "C   - Clear world\n"
+                "Esc - Quit\n"
+                "\n"
+                "While paused, you can draw\n"
+                "with the mouse"
+            ),
+            background="blue",
+            padding=(20, 20),
+        )
         self.pause_label.image.set_alpha(127)
         self.pause_label.rect.center = self.world.rect.center
         self.pause_label.add(DisplaySystem.sprite_group)
@@ -110,6 +130,7 @@ class Game(Entity):
         self.event_map = EventMap(
             {
                 KeyDown(pygame.K_ESCAPE): self.quit,
+                KeyDown(pygame.K_c): self.clear,
                 KeyDown(pygame.K_g): self.gosper_gun,
                 KeyDown(pygame.K_p): self.toggle_pause,
                 KeyDown(pygame.K_r): self.randomize,
@@ -119,13 +140,9 @@ class Game(Entity):
             }
         )
 
-    def update(self) -> None:
-        for system in self.systems:
-            system.update(self.entities, **self.state)
-
     def run(self) -> None:
         while self.state["running"]:
-            self.update()
+            self.update(**self.state)
 
     def quit(self, *args) -> None:
         self.state["running"] = False
@@ -136,6 +153,9 @@ class Game(Entity):
             for _ in range(self.world.height)
         ]
 
+    def clear(self, *args) -> None:
+        self.world.cells = self.world.empty()
+
     def toggle_pause(self, *args) -> None:
         self.state["paused"] = not self.state["paused"]
         if self.state["paused"]:
@@ -144,7 +164,6 @@ class Game(Entity):
             self.pause_label.kill()
 
     def toggle_painting(self, event) -> None:
-        print(event.__dict__)
         if self.state["paused"]:
             self.state["painting"] = not self.state["painting"]
 
@@ -156,15 +175,17 @@ class Game(Entity):
 
     def gosper_gun(self, *args) -> None:
         cells = (
-            "........................O",
-            "......................O.O",
-            "............OO......OO............OO",
-            "...........O...O....OO............OO",
-            "OO........O.....O...OO",
-            "OO........O...O.OO....O.O",
-            "..........O.....O.......O",
-            "...........O...O",
-            "............OO",
+            "......................................",
+            ".........................O............",
+            ".......................O.O............",
+            ".............OO......OO............OO.",
+            "............O...O....OO............OO.",
+            ".OO........O.....O...OO...............",
+            ".OO........O...O.OO....O.O............",
+            "...........O.....O.......O............",
+            "............O...O.....................",
+            ".............OO.......................",
+            "......................................",
         )
         for y, row in enumerate(cells):
             for x, cell in enumerate(row):
