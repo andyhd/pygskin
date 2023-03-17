@@ -6,6 +6,11 @@ from typing import Type
 
 
 class Entity:
+    instances: list[Entity] = []
+
+    def __init__(self) -> None:
+        self.instances.append(self)
+
     def __getattr__(self, name: str) -> Any:
         for attr, value in self.__dict__.items():
             if value.__class__.__name__ == name:
@@ -40,10 +45,12 @@ class System:
 
 
 class Container:
-    def __init__(self) -> None:
-        self.systems: list[System] = []
-        self.entities: list[Entity] = []
+    @property
+    def systems(self) -> list[System]:
+        if not hasattr(self, "_systems"):
+            setattr(self, "_systems", [])
+        return self._systems
 
     def update(self, **kwargs) -> None:
         for system in self.systems:
-            system.update(self.entities, **kwargs)
+            system.update(Entity.instances, **kwargs)

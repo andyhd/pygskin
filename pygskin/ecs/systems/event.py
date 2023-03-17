@@ -15,7 +15,7 @@ class EventSystem(System):
     query = Entity.has(EventMap)
 
     def update(self, entities: list[Entity], **kwargs):
-        super().update(entities, events=list(Event.queue), **kwargs)
+        super().update(reversed(entities), events=list(Event.queue), **kwargs)
 
     def update_entity(self, entity, events=None, **kwargs):
         for event in events:

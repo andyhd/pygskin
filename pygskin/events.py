@@ -22,12 +22,14 @@ class Event:
         kwargs = params.arguments.pop("kwargs", {})
         self.__dict__.update(params.arguments)
         self.__dict__.update(kwargs)
+        self._ignore = False
 
     def match(self, other: Any) -> bool:
         return (
             isinstance(other, (Event, pygame.event.Event, pygame.event.EventType))
             and self.type == other.type
             and self.__dict__.items() <= other.__dict__.items()
+            and not getattr(other, "_ignore", False)
         )
 
     def __eq__(self, other: Any) -> bool:
@@ -35,6 +37,9 @@ class Event:
 
     def __hash__(self):
         return hash((self.type, repr(self.__dict__)))
+
+    def stopPropagation(self) -> None:
+        self._ignore = True
 
     @property
     def event(self) -> pygame.event.Event:

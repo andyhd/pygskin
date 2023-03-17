@@ -4,10 +4,10 @@ import random
 
 import pygame
 
+from pygskin import Window
 from pygskin import ecs
 from pygskin.ecs.components import EventMap
 from pygskin.ecs.systems import DisplaySystem
-from pygskin.ecs.systems import EventSystem
 from pygskin.ecs.systems import IntervalSystem
 from pygskin.events import KeyDown
 from pygskin.events import MouseButtonDown
@@ -18,7 +18,8 @@ from pygskin.text import Text
 
 class World(ecs.Entity, pygame.sprite.Sprite):
     def __init__(self, size: tuple[int, int], cell_size: tuple[int, int]) -> None:
-        super().__init__()
+        ecs.Entity.__init__(self)
+        pygame.sprite.Sprite.__init__(self)
         (self.width, self.height) = (w, h) = size
         (self.cell_width, self.cell_height) = (cw, ch) = cell_size
         self.rect = pygame.Rect((0, 0), (w * cw, h * ch))
@@ -77,29 +78,20 @@ class GenerationSystem(IntervalSystem):
         entity.next_generation()
 
 
-class Game(ecs.Entity, ecs.Container):
+class Game(Window):
     def __init__(self) -> None:
-        super().__init__()
         self.world = World((160, 160), cell_size=(5, 5))
         self.world.add(DisplaySystem.sprite_group)
 
+        super().__init__(size=self.world.rect.size, title="Conway's Life")
+
         self.state = {
-            "running": True,
             "paused": True,
             "painting": False,
             "world": self.world,
         }
 
-        self.systems.extend(
-            [
-                DisplaySystem(
-                    size=self.world.rect.size,
-                    title="Conway's Life",
-                ),
-                EventSystem(),
-                GenerationSystem(fps=100),
-            ]
-        )
+        self.systems.append(GenerationSystem(fps=100))
 
         self.pause_label = Text(
             (
@@ -121,12 +113,6 @@ class Game(ecs.Entity, ecs.Container):
         self.pause_label.rect.center = self.world.rect.center
         self.pause_label.add(DisplaySystem.sprite_group)
 
-        self.entities = [
-            self,
-            self.world,
-            self.pause_label,
-        ]
-
         self.event_map = EventMap(
             {
                 KeyDown(pygame.K_ESCAPE): self.quit,
@@ -140,12 +126,8 @@ class Game(ecs.Entity, ecs.Container):
             }
         )
 
-    def run(self) -> None:
-        while self.state["running"]:
-            self.update(**self.state)
-
-    def quit(self, *args) -> None:
-        self.state["running"] = False
+    def update(self):
+        super().update(**self.state)
 
     def randomize(self, *args) -> None:
         self.world.cells = [
