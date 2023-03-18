@@ -4,7 +4,6 @@ import random
 
 import pygame
 
-from pygskin import Window
 from pygskin import ecs
 from pygskin.ecs.components import EventMap
 from pygskin.ecs.systems import DisplaySystem
@@ -13,55 +12,47 @@ from pygskin.events import KeyDown
 from pygskin.events import MouseButtonDown
 from pygskin.events import MouseButtonUp
 from pygskin.events import MouseMotion
+from pygskin.grid import Grid
 from pygskin.text import Text
+from pygskin.window import Window
 
 
 class World(ecs.Entity, pygame.sprite.Sprite):
-    def __init__(self, size: tuple[int, int], cell_size: tuple[int, int]) -> None:
+    def __init__(self, grid: Grid, cell_size: tuple[int, int]) -> None:
         ecs.Entity.__init__(self)
         pygame.sprite.Sprite.__init__(self)
-        (self.width, self.height) = (w, h) = size
-        (self.cell_width, self.cell_height) = (cw, ch) = cell_size
-        self.rect = pygame.Rect((0, 0), (w * cw, h * ch))
+        self.grid = grid
+        self.grid.cell_size = cell_size
+        self.rect = pygame.Rect((0, 0), grid.mapped_size)
         self.cells = self.empty()
         self.surface = pygame.Surface(self.rect.size)
 
     def empty(self) -> None:
-        return [[False for _ in range(self.width)] for _ in range(self.height)]
+        return [[False for _ in range(self.grid.cols)] for _ in range(self.grid.rows)]
 
     def next_generation(self) -> None:
         next_gen = self.empty()
-        for y, row in enumerate(self.cells):
-            for x, alive in enumerate(row):
-                num_neighbours = self.count_neighbours(x, y)
-                next_gen[y][x] = (alive and 2 <= num_neighbours <= 3) or (
-                    not alive and num_neighbours == 3
-                )
+        for (x, y) in self.grid:
+            alive = self.cells[y][x]
+            num_neighbours = self.count_neighbours(x, y)
+            next_gen[y][x] = (alive and 2 <= num_neighbours <= 3) or (
+                not alive and num_neighbours == 3
+            )
         self.cells = next_gen
 
     def count_neighbours(self, x: int, y: int) -> int:
-        count = 0
-        for j in (-1, 0, 1):
-            for i in (-1, 0, 1):
-                (nx, ny) = (x + i, y + j)
-                if (
-                    (nx, ny) != (x, y)
-                    and 0 <= nx < self.width
-                    and 0 <= ny < self.height
-                    and self.cells[ny][nx]
-                ):
-                    count += 1
-        return count
+        return sum(
+            int(self.cells[ny][nx])
+            for (nx, ny) in self.grid.neighbours(x, y)
+            if (nx, ny) in self.grid
+        )
 
     @property
     def image(self) -> pygame.Surface:
         self.surface.fill("black")
-        rect = pygame.Rect((0, 0), (self.cell_width, self.cell_height))
-        for y, row in enumerate(self.cells):
-            for x, alive in enumerate(row):
-                if alive:
-                    rect.topleft = (x * self.cell_width, y * self.cell_height)
-                    pygame.draw.rect(self.surface, "white", rect)
+        for (x, y) in self.grid:
+            if self.cells[y][x]:
+                pygame.draw.rect(self.surface, "white", self.grid.rect((x, y)))
         return self.surface
 
 
@@ -80,7 +71,7 @@ class GenerationSystem(IntervalSystem):
 
 class Game(Window):
     def __init__(self) -> None:
-        self.world = World((160, 160), cell_size=(5, 5))
+        self.world = World(Grid(160, 160), cell_size=(5, 5))
         self.world.add(DisplaySystem.sprite_group)
 
         super().__init__(size=self.world.rect.size, title="Conway's Life")
@@ -131,8 +122,8 @@ class Game(Window):
 
     def randomize(self, *args) -> None:
         self.world.cells = [
-            random.choices([True, False], k=self.world.width)
-            for _ in range(self.world.height)
+            random.choices([True, False], k=self.world.grid.cols)
+            for _ in range(self.world.grid.rows)
         ]
 
     def clear(self, *args) -> None:
@@ -151,8 +142,8 @@ class Game(Window):
 
     def paint(self, event) -> None:
         if self.state["painting"]:
-            x = event.pos[0] // self.world.cell_width
-            y = event.pos[1] // self.world.cell_height
+            x = event.pos[0] // self.world.grid.cell_width
+            y = event.pos[1] // self.world.grid.cell_height
             self.world.cells[y][x] = True
 
     def gosper_gun(self, *args) -> None:

@@ -1,26 +1,21 @@
+from dataclasses import dataclass
+from dataclasses import field
 from functools import cache
 
 import pygame
 
+from pygskin.grid import Grid
 
+
+@dataclass
 class Spritesheet:
-    filename: str
-    grid: tuple[int, int]
-    names: dict[str, tuple[int, int]]
+    image: pygame.Surface
+    grid: Grid
+    names: dict[str, tuple[int, int]] = field(default_factory=dict)
 
-    def __init__(
-        self,
-        image: pygame.Surface | None = None,
-        grid: tuple[int, int] | None = None,
-        names: dict[str, tuple[int, int]] | None = None,
-    ) -> None:
-        self.image = image or pygame.image.load(self.filename).convert_alpha()
-        if grid is not None:
-            self.grid = grid
-        width, height = self.image.get_size()
-        grid_width, grid_height = self.grid
-        self.cell_width = int(width / grid_width)
-        self.cell_height = int(height / grid_height)
+    def __post_init__(self) -> None:
+        self.rect = self.image.get_size()
+        self.grid.map_to(self.rect)
 
     def __getitem__(self, key: str | tuple[int, int]) -> pygame.Surface:
         if isinstance(key, str):
@@ -29,20 +24,7 @@ class Spritesheet:
                 return self[self.names[skey]]
 
         if isinstance(key, tuple):
-            x, y = key
-
-            image = pygame.Surface((self.cell_width, self.cell_height)).convert_alpha()
-            image.blit(
-                self.image,
-                (0, 0),
-                pygame.Rect(
-                    x * self.cell_width,
-                    y * self.cell_height,
-                    self.cell_width,
-                    self.cell_height,
-                ),
-            )
-            return image
+            return self.image.subsurface(self.grid.rect(key))
 
         raise KeyError
 

@@ -9,7 +9,6 @@ import pygame
 from pygame.sprite import Sprite
 from pygame.sprite import collide_rect
 
-from pygskin import CachedSpritesheet
 from pygskin import Direction
 from pygskin import KeyDown
 from pygskin import Sound
@@ -20,6 +19,7 @@ from pygskin import message
 from pygskin.ecs.components import EventMap
 from pygskin.ecs.systems import DisplaySystem
 from pygskin.ecs.systems import IntervalSystem
+from pygskin.grid import Grid
 
 
 class Config:
@@ -28,31 +28,28 @@ class Config:
     FPS = 100
 
 
-class SnakeSprites(CachedSpritesheet):
-    filename = Path(__file__).parent / "images/snake.png"
-    grid = (4, 4)
-    names = {
-        "HEAD UP": (0, 0),
-        "HEAD DOWN": (1, 1),
-        "HEAD LEFT": (0, 1),
-        "HEAD RIGHT": (1, 0),
-        "TAIL UP": (0, 2),
-        "TAIL DOWN": (1, 3),
-        "TAIL LEFT": (0, 3),
-        "TAIL RIGHT": (1, 2),
-        "UP LEFT": (3, 0),
-        "UP RIGHT": (2, 0),
-        "DOWN LEFT": (3, 1),
-        "DOWN RIGHT": (2, 1),
-        "LEFT UP": (2, 1),
-        "LEFT DOWN": (2, 0),
-        "RIGHT UP": (3, 1),
-        "RIGHT DOWN": (3, 0),
-        "UP UP": (2, 2),
-        "DOWN DOWN": (2, 2),
-        "LEFT LEFT": (3, 2),
-        "RIGHT RIGHT": (3, 2),
-    }
+SNAKE_SPRITE_MAP = {
+    "HEAD UP": (0, 0),
+    "HEAD DOWN": (1, 1),
+    "HEAD LEFT": (0, 1),
+    "HEAD RIGHT": (1, 0),
+    "TAIL UP": (0, 2),
+    "TAIL DOWN": (1, 3),
+    "TAIL LEFT": (0, 3),
+    "TAIL RIGHT": (1, 2),
+    "UP LEFT": (3, 0),
+    "UP RIGHT": (2, 0),
+    "DOWN LEFT": (3, 1),
+    "DOWN RIGHT": (2, 1),
+    "LEFT UP": (2, 1),
+    "LEFT DOWN": (2, 0),
+    "RIGHT UP": (3, 1),
+    "RIGHT DOWN": (3, 0),
+    "UP UP": (2, 2),
+    "DOWN DOWN": (2, 2),
+    "LEFT LEFT": (3, 2),
+    "RIGHT RIGHT": (3, 2),
+}
 
 
 @dataclass
@@ -243,7 +240,8 @@ class Game(Window):
 
         self.event_map.update({KeyDown(pygame.K_ESCAPE): self.quit})
 
-        spritesheet = SnakeSprites()
+        sprites = pygame.image.load(Path(__file__).parent / "images/snake.png")
+        spritesheet = Spritesheet(sprites, Grid(4, 4), SNAKE_SPRITE_MAP)
 
         player = Snake(Config.CELL_SIZE, Direction.RIGHT, 3, spritesheet)
         player.event_map = EventMap(
