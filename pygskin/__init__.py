@@ -11,7 +11,6 @@ from pygskin.input import InputHandler
 from pygskin.interfaces import Drawable
 from pygskin.interfaces import Updatable
 from pygskin.pubsub import message
-from pygskin.screen import Screen
 from pygskin.spritesheet import CachedSpritesheet
 from pygskin.spritesheet import Spritesheet
 from pygskin.state_machine import StateMachine
@@ -34,7 +33,6 @@ __all__ = [
     "Drawable",
     "Updatable",
     "message",
-    "Screen",
     "CachedSpritesheet",
     "Spritesheet",
     "StateMachine",
