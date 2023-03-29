@@ -1,36 +1,44 @@
-from functools import cached_property
 from typing import Any
 from typing import Callable
+from typing import ClassVar
 
 import pygame
-from pygskin import pubsub
+
 from pygskin.events import Event
+from pygskin.pubsub import message
 
 
 class Timer(Event):
-    REPEAT_FOREVER = 0
-    ONCE = 1
+    """
+    Timer event adds itself to the event queue after `delay` milliseconds.
+    If `repeat_count` is > 1, it adds itself to the event queue that many times at
+    `delay`ms intervals.
+    If `repeat_cound` is 0 (Timer.REPEAT_FOREVER), it will continuously add itself to
+    the queue at `delay`ms intervals.
+    Repeat events can be stopped with `cancel()`
+    """
 
-    _CUSTOM_TYPES_POOL = set()
-    _CUSTOM_TYPES_IN_USE = set()
+    REPEAT_FOREVER: ClassVar[int] = 0
+    ONCE: ClassVar[int] = 1
 
-    def __init__(
-        self,
-        delay: int,
-        repeat_count: int = ONCE,
-        on_finish: Callable | None = None,
-    ) -> None:
+    _CUSTOM_TYPES_POOL: ClassVar[set[int]] = set()
+    _CUSTOM_TYPES_IN_USE: ClassVar[set[int]] = set()
+
+    delay: int = 0
+    repeat_count: int = ONCE
+    on_finish: Callable | None = None
+
+    def __post_init__(self) -> None:
+        if getattr(self, "type", None) is None:
+            self.type = getattr(self, "type_", self._get_custom_type())
         Event.CLASSES[self.type] = self.__class__
-        self.delay = delay
-        self.repeat_count = repeat_count
-        self.start = pubsub.Message()
-        self.start.subscribe(self._start)
-        self.finish = pubsub.Message()
-        if callable(on_finish):
-            self.on_finish = on_finish
-            self.finish.subscribe(on_finish)
+        self.finish = message()
+        if callable(self.on_finish):
+            self.finish.subscribe(self.on_finish)
 
     def __del__(self) -> None:
+        if getattr(self, "type", None) is None:
+            return
         try:
             Timer._CUSTOM_TYPES_IN_USE.remove(self.type)
         except KeyError:
@@ -42,28 +50,13 @@ class Timer(Event):
             pass
         del self.type
 
-    def __eq__(self, other: Any) -> bool:
+    def match(self, other: Any) -> bool:
         return (
             isinstance(other, (Timer, pygame.event.EventType))
             and other.type in Timer._CUSTOM_TYPES_IN_USE
         )
 
-    def __hash__(self):
-        return hash((self.type, repr(self.event.__dict__)))
-
-    @property
-    def event(self) -> pygame.event.Event:
-        return pygame.event.Event(
-            self.type,
-            {
-                "delay": self.delay,
-                "repeat_count": self.repeat_count,
-                "on_finish": self.on_finish,
-            },
-        )
-
-    @cached_property
-    def type(self) -> int:
+    def _get_custom_type(self) -> int:
         try:
             type = Timer._CUSTOM_TYPES_POOL.pop()
         except KeyError:
@@ -71,7 +64,21 @@ class Timer(Event):
         Timer._CUSTOM_TYPES_IN_USE.add(type)
         return type
 
-    def _start(self) -> None:
+    @property
+    def event(self) -> pygame.event.Event:
+        return pygame.event.Event(
+            self.type,
+            {
+                "type_": self.type,
+                "delay": self.delay,
+                "repeat_count": self.repeat_count,
+                "on_finish": self.on_finish,
+            },
+        )
+
+    @message
+    def start(self) -> None:
+        """Trigger the event (sequence)."""
         pygame.time.set_timer(
             self.event,
             millis=self.delay,
@@ -79,10 +86,12 @@ class Timer(Event):
         )
 
     def repeat(self, repeat_count: int = REPEAT_FOREVER) -> None:
+        """Set repeat count and trigger the event sequence."""
         self.repeat_count = repeat_count
         self.start()
 
     def cancel(self) -> None:
+        """Cancel the timer."""
         pygame.time.set_timer(
             self.event,
             millis=0,

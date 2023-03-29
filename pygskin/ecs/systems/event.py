@@ -2,6 +2,7 @@ from pygskin.ecs import Entity
 from pygskin.ecs import System
 from pygskin.ecs.components.event import EventMap
 from pygskin.events import Event
+from pygskin.timer import Timer
 
 
 class EventSystem(System):
@@ -19,6 +20,9 @@ class EventSystem(System):
 
     def update_entity(self, entity, events=None, **kwargs):
         for event in events:
-            for ev, action in entity.EventMap.items():
-                if ev.match(event):
-                    action(event)
+            if isinstance(event, Timer):
+                event.finish()
+            else:
+                for ev, action in entity.EventMap.items():
+                    if ev.match(event):
+                        action(event)
