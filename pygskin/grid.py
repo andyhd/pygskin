@@ -44,8 +44,15 @@ class Grid:
     def rect(self, xy: tuple[int, int]) -> Rect:
         return Rect(self.map(xy), self.cell_size)
 
-    def neighbours(self, x, y) -> Iterator[tuple[int, int]]:
-        for j in (-1, 0, 1):
-            for i in (-1, 0, 1):
-                if not i == j == 0:
-                    yield (x + i, y + j)
+    def neighbours(self, x, y, wrap: bool = False) -> Iterator[tuple[int, int]]:
+        wrap_x = wrap_y = wrap
+        rows = (y - 1, y, y + 1)
+        if wrap_y:
+            rows = [(y % self.rows) for y in rows]
+        cols = (x - 1, x, x + 1)
+        if wrap_x:
+            cols = [(x % self.cols) for x in cols]
+        for ny in rows:
+            for nx in cols:
+                if not (ny == y and nx == x):
+                    yield (nx, ny)

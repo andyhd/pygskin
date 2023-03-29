@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import random
+from dataclasses import dataclass
+from typing import Iterator
 
 import pygame
 
@@ -17,6 +19,37 @@ from pygskin.text import Text
 from pygskin.window import Window
 
 
+@dataclass
+class Cell:
+    alive: bool
+    num_neighbours: int
+
+
+class CellGrid(Grid):
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        self.cells = self.empty()
+
+    def __getitem__(self, xy: tuple[int, int]) -> Cell:
+        x, y = xy
+        return self.cells[y][x]
+
+    def __setitem__(self, xy: tuple[int, int], value: Cell) -> None:
+        x, y = xy
+        self.cells[y][x] = value
+
+    def empty(self) -> list[list[Cell]]:
+        return [[Cell(False, 0) for x in range(self.cols)] for y in range(self.rows)]
+
+    def with_keys(self) -> Iterator[tuple[tuple[int, int], Cell]]:
+        for xy in self:
+            yield xy, self[xy]
+
+    def neighbours(self, xy) -> Iterator[Cell]:
+        for xy in super().neighbours(*xy, wrap=True):
+            yield self[xy]
+
+
 class World(ecs.Entity, pygame.sprite.Sprite):
     def __init__(self, grid: Grid, cell_size: tuple[int, int]) -> None:
         ecs.Entity.__init__(self)
@@ -24,35 +57,56 @@ class World(ecs.Entity, pygame.sprite.Sprite):
         self.grid = grid
         self.grid.cell_size = cell_size
         self.rect = pygame.Rect((0, 0), grid.mapped_size)
-        self.cells = self.empty()
+        self.cells = CellGrid(*grid.size)
         self.surface = pygame.Surface(self.rect.size)
-
-    def empty(self) -> None:
-        return [[False for _ in range(self.grid.cols)] for _ in range(self.grid.rows)]
+        self.image_generation = self.generation = 0
 
     def next_generation(self) -> None:
-        next_gen = self.empty()
-        for (x, y) in self.grid:
-            alive = self.cells[y][x]
-            num_neighbours = self.count_neighbours(x, y)
-            next_gen[y][x] = (alive and 2 <= num_neighbours <= 3) or (
-                not alive and num_neighbours == 3
-            )
-        self.cells = next_gen
+        next_gen = CellGrid(*self.grid.size)
 
-    def count_neighbours(self, x: int, y: int) -> int:
-        return sum(
-            int(self.cells[ny][nx])
-            for (nx, ny) in self.grid.neighbours(x, y)
-            if (nx, ny) in self.grid
-        )
+        for xy, cell in self.cells.with_keys():
+            alive = (cell.alive and 2 <= cell.num_neighbours <= 3) or (
+                not cell.alive and cell.num_neighbours == 3
+            )
+
+            if alive:
+                next_gen[xy].alive = alive
+                # for neighbour in next_gen.neighbours(xy):
+                #     neighbour.num_neighbours += 1
+                x, y = xy
+                rows = ((y - 1) % self.grid.rows, y, (y + 1) % self.grid.rows)
+                cols = ((x - 1) % self.grid.cols, x, (x + 1) % self.grid.cols)
+                for ny in rows:
+                    for nx in cols:
+                        if not (ny == y and nx == x):
+                            next_gen[(nx, ny)].num_neighbours += 1
+
+        self.cells = next_gen
+        self.generation += 1
+
+    def randomize(self) -> None:
+        for xy, cell in self.cells.with_keys():
+            cell.alive = random.random() < 0.5
+
+    def refresh(self) -> None:
+        for xy, cell in self.cells.with_keys():
+            cell.num_neighbours = sum(
+                neighbour.alive for neighbour in self.cells.neighbours(xy)
+            )
+        self.image_generation = -1
 
     @property
     def image(self) -> pygame.Surface:
-        self.surface.fill("black")
-        for (x, y) in self.grid:
-            if self.cells[y][x]:
-                pygame.draw.rect(self.surface, "white", self.grid.rect((x, y)))
+        if self.image_generation != self.generation:
+            self.surface.fill("black")
+            for xy, cell in self.cells.with_keys():
+                if cell.alive:
+                    pygame.draw.rect(self.surface, "white", self.grid.rect(xy))
+            self.image_generation = self.generation
+            label = Text(f"Generation: {self.generation}", background="black")
+            label.image.set_alpha(196)
+            label.rect.bottom = self.grid.mapped_size[1]
+            self.surface.blit(label.image, label.rect)
         return self.surface
 
 
@@ -121,13 +175,12 @@ class Game(Window):
         super().update(**self.state)
 
     def randomize(self, *args) -> None:
-        self.world.cells = [
-            random.choices([True, False], k=self.world.grid.cols)
-            for _ in range(self.world.grid.rows)
-        ]
+        self.world.randomize()
+        self.world.refresh()
 
     def clear(self, *args) -> None:
-        self.world.cells = self.world.empty()
+        self.world.cells = CellGrid(*self.world.grid.size)
+        self.world.generation = 0
 
     def toggle_pause(self, *args) -> None:
         self.state["paused"] = not self.state["paused"]
@@ -142,9 +195,11 @@ class Game(Window):
 
     def paint(self, event) -> None:
         if self.state["painting"]:
-            x = event.pos[0] // self.world.grid.cell_width
-            y = event.pos[1] // self.world.grid.cell_height
-            self.world.cells[y][x] = True
+            cell_width, cell_height = self.world.grid.cell_size
+            x = event.pos[0] // cell_width
+            y = event.pos[1] // cell_height
+            self.world.cells[(x, y)].alive = True
+            self.world.refresh()
 
     def gosper_gun(self, *args) -> None:
         cells = (
@@ -162,7 +217,8 @@ class Game(Window):
         )
         for y, row in enumerate(cells):
             for x, cell in enumerate(row):
-                self.world.cells[y + 40][x + 40] = cell == "O"
+                self.world.cells[(x + 40, y + 40)].alive = cell == "O"
+        self.world.refresh()
 
 
 if __name__ == "__main__":
