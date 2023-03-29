@@ -74,3 +74,15 @@ class Music(Asset):
 
     def play(self, repeat_count: int = REPEAT_FOREVER) -> None:
         pygame.mixer.music.play(loops=repeat_count)
+
+
+class Font(Asset):
+    def __init__(self, filename: str, size: int = 30) -> None:
+        super().__init__(filename)
+        self.font: pygame.font.Font | None = None
+        self.size = size
+
+    def load(self) -> None:
+        if not pygame.font.get_init():
+            pygame.font.init()
+        self.font = pygame.font.Font(self.filename, self.size)
