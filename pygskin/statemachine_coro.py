@@ -1,4 +1,17 @@
-def StateMachine(transition_table, state):
+from typing import Callable
+from typing import Iterator
+from typing import TypeVar
+
+Input = TypeVar("Input")
+State = TypeVar("State")
+Transition = Callable[[Input], State | None]
+TransitionTable = dict[State, list[Transition]]
+
+
+def StateMachine(
+    transition_table: TransitionTable,
+    state: State,
+) -> Iterator[State | None]:
     while state:
         input = yield state
         for transition in transition_table[state]:
