@@ -1,16 +1,30 @@
+from functools import partial
+from typing import Any
+from typing import Callable
+from typing import ClassVar
+
 import filetype
 import pygame
+
+from pygskin.pubsub import message
 
 
 class Asset:
     class NotRecognised(Exception):
         pass
 
+    load: ClassVar[Callable[[str], Any]]
+
     def __init__(self, filename: str) -> None:
         self.filename = filename
+        self._loaded = False
+        self.loaded = message()
 
-    def load(self) -> None:
-        raise NotImplementedError
+    def ensure_loaded(self) -> None:
+        if not self._loaded:
+            self.data = self.load(self.filename)
+            self._loaded = True
+            self.loaded()
 
     @classmethod
     def prep(cls, filename: str) -> None:
@@ -19,70 +33,53 @@ class Asset:
             raise Asset.NotRecognised(filename)
 
         if kind.mime.startswith("image/"):
+            pygame.display.init()
             return Image(filename)
 
         if kind.mime.startswith("audio/"):
+            if pygame.mixer and not pygame.mixer.get_init():
+                pygame.mixer.init()
             if kind.mime.startwith("audio/mp3"):
                 return Music(filename)
             return Sound(filename)
 
         if kind.mime.startswith("application/font-"):
+            if not pygame.font.get_init():
+                pygame.font.init()
             return Font(filename)
 
 
 class Image(Asset):
-    def __init__(self, filename: str) -> None:
-        super().__init__(filename)
-        self.image: pygame.Surface | None = None
-
-    def load(self) -> None:
-        if not self.image:
-            self.image = pygame.image.load(self.filename)
+    load = pygame.image.load
 
 
 class Sound(Asset):
+    load = pygame.mixer.Sound
+
     def __init__(self, filename: str, volume: float = 1.0) -> None:
         super().__init__(filename)
-        self.sound: pygame.mixer.Sound | None = None
-        self.volume = volume
-
-    def load(self) -> None:
-        if pygame.mixer and not pygame.mixer.get_init():
-            pygame.mixer.init()
-        if not self.sound and pygame.mixer and pygame.mixer.get_init():
-            self.sound = pygame.mixer.Sound(self.filename)
-            self.sound.set_volume(self.volume)
+        self.loaded.subscribe(partial(self.data.set_volume, volume))
 
     def play(self, *args, **kwargs) -> None:
-        if not self.sound:
-            self.load()
-
-        if self.sound:
-            self.sound.play()
+        self.ensure_loaded()
+        self.data.play()
 
 
 class Music(Asset):
+    load = pygame.mixer.music.load
+
     REPEAT_FOREVER = -1
 
     def __init__(self, filename: str, volume: float = 1.0) -> None:
         super().__init__(filename)
-        self.volume = volume
-
-    def load(self) -> None:
-        pygame.mixer.music.load(self.filename)
-        pygame.mixer.music.set_volume(self.volume)
+        self.loaded.subscribe(partial(pygame.mixer.music.set_volume, volume))
 
     def play(self, repeat_count: int = REPEAT_FOREVER) -> None:
+        self.ensure_loaded()
         pygame.mixer.music.play(loops=repeat_count)
 
 
 class Font(Asset):
     def __init__(self, filename: str, size: int = 30) -> None:
         super().__init__(filename)
-        self.font: pygame.font.Font | None = None
-        self.size = size
-
-    def load(self) -> None:
-        if not pygame.font.get_init():
-            pygame.font.init()
-        self.font = pygame.font.Font(self.filename, self.size)
+        self.load = lambda fname: pygame.font.Font(fname, size)

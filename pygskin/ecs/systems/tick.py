@@ -10,7 +10,7 @@ class TickSystem(System):
 
     def __init__(self, **options) -> None:
         self.clock = pygame.time.Clock()
-        self.fps = options.get("fps", 60)
+        self.fps = options.get("fps", 0)
         self.ms_since_last_tick = 0
 
     def tick(self) -> int:

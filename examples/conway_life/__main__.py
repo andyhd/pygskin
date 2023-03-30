@@ -9,7 +9,6 @@ import pygame
 from pygskin import ecs
 from pygskin.ecs.components import EventMap
 from pygskin.ecs.systems import DisplaySystem
-from pygskin.ecs.systems import IntervalSystem
 from pygskin.events import KeyDown
 from pygskin.events import MouseButtonDown
 from pygskin.events import MouseButtonUp
@@ -110,17 +109,13 @@ class World(ecs.Entity, pygame.sprite.Sprite):
         return self.surface
 
 
-class GenerationSystem(IntervalSystem):
+class GenerationSystem(ecs.System):
     def query(x):
         return isinstance(x, World)
 
-    def should_update(self, **state) -> bool:
-        if state["paused"]:
-            return False
-        return super().should_update()
-
     def update_entity(self, entity: ecs.Entity, **state) -> None:
-        entity.next_generation()
+        if not state["paused"]:
+            entity.next_generation()
 
 
 class Game(Window):
@@ -136,7 +131,7 @@ class Game(Window):
             "world": self.world,
         }
 
-        self.systems.append(GenerationSystem(fps=100))
+        self.systems.append(GenerationSystem())
 
         self.pause_label = Text(
             (

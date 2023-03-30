@@ -9,17 +9,17 @@ import pygame
 from pygame.sprite import Sprite
 from pygame.sprite import collide_rect
 
-from pygskin import Direction
-from pygskin import KeyDown
-from pygskin import Sound
-from pygskin import Spritesheet
-from pygskin import Window
 from pygskin import ecs
-from pygskin import message
+from pygskin.assets import Sound
+from pygskin.direction import Direction
 from pygskin.ecs.components import EventMap
 from pygskin.ecs.systems import DisplaySystem
 from pygskin.ecs.systems import IntervalSystem
+from pygskin.events import KeyDown
 from pygskin.grid import Grid
+from pygskin.pubsub import message
+from pygskin.spritesheet import Spritesheet
+from pygskin.window import Window
 
 
 class Config:

@@ -1,11 +1,10 @@
-from pygskin.ecs import Entity
-from pygskin.ecs import System
+from pygskin import ecs
 from pygskin.ecs.components.event import EventMap
 from pygskin.events import Event
 from pygskin.timer import Timer
 
 
-class EventSystem(System):
+class EventSystem(ecs.System):
     """
     Handles events, including keyboard events.
 
@@ -13,9 +12,9 @@ class EventSystem(System):
     this system calls the on_event callback when an event is received.
     """
 
-    query = Entity.has(EventMap)
+    query = ecs.Entity.has(EventMap)
 
-    def update(self, entities: list[Entity], **kwargs):
+    def update(self, entities: list[ecs.Entity], **kwargs):
         super().update(reversed(entities), events=list(Event.queue), **kwargs)
 
     def update_entity(self, entity, events=None, **kwargs):

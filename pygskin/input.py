@@ -5,7 +5,6 @@ from typing import Callable
 
 from pygskin.events import Event
 from pygskin.events import Quit
-from pygskin.interfaces import Updatable
 from pygskin.timer import Timer
 
 
@@ -21,7 +20,7 @@ class Input:
         self.handler(*params.args, **params.kwargs)
 
 
-class InputHandler(Updatable):
+class InputHandler:
     event_map: dict[Event, Input]
 
     def get_input_for_event(self, event: Event) -> Input | None:
