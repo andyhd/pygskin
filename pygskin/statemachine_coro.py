@@ -12,64 +12,53 @@ def StateMachine(
     transition_table: TransitionTable,
     state: State,
 ) -> Iterator[State | None]:
+    """
+    A state machine implemented with a coroutine
+
+    >>> s = {"code": [1, 2, 3], "buffer": []}
+    >>> def unlock(i):
+    ...     buffer = s["buffer"] + [i]
+    ...     if len(buffer) == len(s["code"]) and buffer == s["code"]:
+    ...         return "unlocked"
+    >>> def error(i):
+    ...     buffer = s["buffer"] + [i]
+    ...     if len(buffer) == len(s["code"]) and not buffer == s["code"]:
+    ...         return lock()
+    >>> def digit(i):
+    ...     if isinstance(i, int) and 0 <= i <= 9:
+    ...         s["buffer"].append(i)
+    ...         return "entering_code"
+    >>> def lock(*_):
+    ...     s["buffer"].clear()
+    ...     return "locked"
+    >>> safe = StateMachine(
+    ...     {
+    ...         "locked": [digit],
+    ...         "entering_code": [unlock, error, digit],
+    ...         "unlocked": [lock],
+    ...     },
+    ...     "locked",
+    ... )
+    >>> next(safe)
+    'locked'
+    >>> safe.send('A')
+    'locked'
+    >>> safe.send(5)
+    'entering_code'
+    >>> safe.send(5)
+    'entering_code'
+    >>> safe.send(5)
+    'locked'
+    >>> safe.send(1)
+    'entering_code'
+    >>> safe.send(2)
+    'entering_code'
+    >>> safe.send(3)
+    'unlocked'
+    """
     while state:
         input = yield state
         for transition in transition_table[state]:
             if next_state := transition(input):
                 state = next_state
                 break
-
-
-class Safe:
-    """
-    Example statemachine
-
-    >>> safe = Safe()
-    >>> next(safe.sm)
-    'locked'
-    >>> safe.sm.send('A')
-    'locked'
-    >>> safe.sm.send(5)
-    'entering_code'
-    >>> safe.sm.send(5)
-    'entering_code'
-    >>> safe.sm.send(5)
-    'locked'
-    >>> safe.sm.send(1)
-    'entering_code'
-    >>> safe.sm.send(2)
-    'entering_code'
-    >>> safe.sm.send(3)
-    'unlocked'
-    """
-
-    def __init__(self):
-        self.code = [1, 2, 3]
-        self.buffer = []
-        self.sm = StateMachine(
-            {
-                "locked": [self.digit],
-                "entering_code": [self.unlock, self.error, self.digit],
-                "unlocked": [self.lock],
-            },
-            "locked",
-        )
-
-    def unlock(self, i):
-        buffer = self.buffer + [i]
-        if len(buffer) == len(self.code) and buffer == self.code:
-            return "unlocked"
-
-    def error(self, i):
-        buffer = self.buffer + [i]
-        if len(buffer) == len(self.code) and not buffer == self.code:
-            return self.lock()
-
-    def digit(self, i):
-        if isinstance(i, int) and 0 <= i <= 9:
-            self.buffer.append(i)
-            return "entering_code"
-
-    def lock(self, *_):
-        self.buffer = []
-        return "locked"
