@@ -1,3 +1,4 @@
-pygame
+pygame-ce==2.2.1
 filetype
 ruamel.yaml
+pytest
