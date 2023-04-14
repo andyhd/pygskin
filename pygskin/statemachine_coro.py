@@ -10,7 +10,7 @@ TransitionTable = dict[State, list[Transition]]
 
 def StateMachine(
     transition_table: TransitionTable,
-    state: State,
+    state: State | None = None,
 ) -> Iterator[State | None]:
     """
     A state machine implemented with a coroutine
@@ -37,7 +37,6 @@ def StateMachine(
     ...         "entering_code": [unlock, error, digit],
     ...         "unlocked": [lock],
     ...     },
-    ...     "locked",
     ... )
     >>> next(safe)
     'locked'
@@ -56,6 +55,8 @@ def StateMachine(
     >>> safe.send(3)
     'unlocked'
     """
+    if state is None:
+        state = next(iter(transition_table))
     while state:
         input = yield state
         for transition in transition_table[state]:
