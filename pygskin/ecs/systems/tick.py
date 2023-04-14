@@ -1,5 +1,6 @@
 import pygame
 
+from pygskin.animation import Animation
 from pygskin.ecs import Entity
 from pygskin.ecs import System
 from pygskin.ecs.components.tick import TickHandler
@@ -42,3 +43,15 @@ class IntervalSystem(TickSystem):
             self.timer = self.interval
             return True
         return False
+
+
+class AnimationSystem(IntervalSystem):
+    query = Entity.has(Animation)
+
+    def __init__(self, **options) -> None:
+        super().__init__(**options)
+        self.interval = 1000 / options.get("fps", 32)
+        self.timer = self.interval
+
+    def update_entity(self, entity, **kwargs) -> None:
+        entity.Animation.update(self.interval, **kwargs)
