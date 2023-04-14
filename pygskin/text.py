@@ -16,8 +16,9 @@ class Text(pygame.sprite.Sprite):
     """
     Simple API for drawing text.
 
-    >>> txt = Text("hello world!")
-    >>> screen.blit(txt.image, txt.rect)
+    eg:
+        txt = Text('hello world!')
+        screen.blit(txt.image, txt.rect)
     """
 
     DEFAULTS = {
