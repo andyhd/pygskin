@@ -7,8 +7,8 @@ from typing import Iterator
 import pygame
 
 from pygskin import ecs
-from pygskin.ecs.components import EventMap
-from pygskin.ecs.systems import DisplaySystem
+from pygskin.events import EventMap
+from pygskin.display import Display
 from pygskin.events import KeyDown
 from pygskin.events import MouseButtonDown
 from pygskin.events import MouseButtonUp
@@ -121,7 +121,7 @@ class GenerationSystem(ecs.System):
 class Game(Window):
     def __init__(self) -> None:
         self.world = World(Grid(160, 160), cell_size=(5, 5))
-        self.world.add(DisplaySystem.sprite_group)
+        self.world.add(Display.sprites)
 
         super().__init__(size=self.world.rect.size, title="Conway's Life")
 
@@ -151,7 +151,7 @@ class Game(Window):
         )
         self.pause_label.image.set_alpha(127)
         self.pause_label.rect.center = self.world.rect.center
-        self.pause_label.add(DisplaySystem.sprite_group)
+        self.pause_label.add(Display.sprites)
 
         self.event_map = EventMap(
             {
@@ -180,7 +180,7 @@ class Game(Window):
     def toggle_pause(self, *args) -> None:
         self.state["paused"] = not self.state["paused"]
         if self.state["paused"]:
-            self.pause_label.add(DisplaySystem.sprite_group)
+            self.pause_label.add(Display.sprites)
         else:
             self.pause_label.kill()
 

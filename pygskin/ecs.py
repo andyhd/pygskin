@@ -15,6 +15,11 @@ class Entity:
         for attr, value in self.__dict__.items():
             if value.__class__.__name__ == name:
                 return value
+
+        for attr, value in self.__class__.__dict__.items():
+            if value.__class__.__name__ == name:
+                return getattr(self, attr)
+
         return self.__getattribute__(name)
 
     @classmethod

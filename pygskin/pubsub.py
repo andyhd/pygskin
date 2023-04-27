@@ -44,13 +44,16 @@ class message:
         self.obj = obj
         self.subscribers: list[Callable] = []
         self.name: str | None = None
+        self.stopProcessing = False
 
     def __call__(self, *args, **kwargs) -> None:
         """Publish the message."""
         for subscriber in self.subscribers:
-            subscriber(*args, **kwargs)
-        if self.callback:
+            if not self.stopProcessing:
+                subscriber(*args, **kwargs)
+        if self.callback and not self.stopProcessing:
             self.callback(*args, **kwargs)
+        self.stopProcessing = False
 
     def __set_name__(self, owner: Any, name: str) -> None:
         self.name = name

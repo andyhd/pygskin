@@ -29,7 +29,7 @@ class Gradient:
             quotient = 1 / height
         if direction in (Direction.UP, Direction.LEFT):
             start, end = end, start
-        surface = Surface(size).convert()
+        surface = Surface(size).convert_alpha()
         for i, pos in enumerate(positions):
             surface.set_at(pos, start.lerp(end, i * quotient))
         return pygame.transform.scale(surface, (width, height))

@@ -9,7 +9,7 @@ import pygame
 from pygame.math import Vector2
 
 from pygskin import ecs
-from pygskin.ecs.systems.tick import TickSystem
+from pygskin.clock import on_tick
 from pygskin.pubsub import message
 
 Vector = Iterable[float]
@@ -75,6 +75,7 @@ class Particle(pygame.sprite.Sprite, ecs.Entity):
     def rect(self):
         return self.image.get_rect(center=self.pos)
 
+    @on_tick
     def update(self, dt: int) -> None:
         self.acceleration = Vector2(0, 0)
         for force in self.forces:
@@ -116,20 +117,14 @@ class Emitter(ecs.Entity):
         self.streams.append(stream)
         # TODO pre-fill
 
-    def update(self) -> None:
+    @on_tick
+    def update(self, _) -> None:
+        # TODO use delta time to control rate of particle emission (eg 3/sec)
         for stream in self.streams:
             for particle in next(stream):
                 if not self.max_particles or len(self.particles) < self.max_particles:
                     particle.pos += self.pos
                     particle.add(self.particles, *self.groups)
-
-
-class ParticleSystem(TickSystem):
-    query = lambda x: isinstance(x, Emitter)  # noqa
-
-    def update_entity(self, emitter: Emitter, **kwargs) -> None:
-        emitter.update()
-        emitter.particles.update(self.ms_since_last_tick)
 
 
 @dataclass

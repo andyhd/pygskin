@@ -5,7 +5,7 @@ from typing import Callable
 
 from pygskin.events import Event
 from pygskin.events import Quit
-from pygskin.timer import Timer
+from pygskin.events import Timer
 
 
 class Input:

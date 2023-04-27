@@ -1,10 +1,10 @@
 import pygame
 
-from pygskin.ecs import System
+from pygskin import ecs
 
 
-class DisplaySystem(System):
-    sprite_group = pygame.sprite.LayeredUpdates()
+class Display(ecs.System):
+    sprites = pygame.sprite.LayeredUpdates()
 
     def __init__(self, **options) -> None:
         size = options.setdefault("size", (800, 600))
@@ -14,6 +14,6 @@ class DisplaySystem(System):
 
     def update(self, *args, **kwargs):
         self.surface.fill("black")
-        self.sprite_group.draw(self.surface)
+        self.sprites.draw(self.surface)
         self.window.blit(self.surface, (0, 0))
         pygame.display.flip()

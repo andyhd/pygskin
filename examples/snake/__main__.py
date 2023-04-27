@@ -12,9 +12,9 @@ from pygame.sprite import collide_rect
 from pygskin import ecs
 from pygskin.assets import Sound
 from pygskin.direction import Direction
-from pygskin.ecs.components import EventMap
-from pygskin.ecs.systems import DisplaySystem
-from pygskin.ecs.systems import IntervalSystem
+from pygskin.events import EventMap
+from pygskin.display import Display
+from pygskin.clock import Clock
 from pygskin.events import KeyDown
 from pygskin.grid import Grid
 from pygskin.pubsub import message
@@ -138,7 +138,7 @@ class Snake(ecs.Entity):
                 is_head=True,
             ),
         )
-        DisplaySystem.sprite_group.add(self.head)
+        Display.sprites.add(self.head)
 
     def shrink(self):
         if len(self.body) > 3:
@@ -168,7 +168,7 @@ class Food(Sprite, ecs.Entity):
         Sprite.__init__(self)
         self.image = spritesheet[(2, 3)]
         self.rect = self.image.get_rect()
-        DisplaySystem.sprite_group.add(self)
+        Display.sprites.add(self)
 
     def place(self, world):
         available_cells = list(
@@ -178,6 +178,8 @@ class Food(Sprite, ecs.Entity):
 
 
 class GrowShrinkSnakes(IntervalSystem):
+    # TODO refactor IntervalSystem as a callback that can be added to Clock
+    # eg Clock.every(msec=1000 / 7).subscribe(GrowShrinkSnakes())
     interval = 1000 / 7
     query = ecs.Entity.has(Body, Flags)
 

@@ -6,6 +6,8 @@ from typing import Protocol
 from typing import TypeVar
 from typing import runtime_checkable
 
+from pygskin import ecs
+from pygskin.clock import on_tick
 from pygskin.pubsub import message
 
 Timestamp = int | float
@@ -30,7 +32,7 @@ EasingFunction = Callable[[float], float]
 
 
 @dataclass
-class Animation:
+class Animation(ecs.Entity):
     """
     An Animation is a map of timestamps to key Frames.
 
@@ -57,6 +59,7 @@ class Animation:
 
     def __post_init__(self) -> None:
         """Ensure keyframes are sorted by timestamp."""
+        ecs.Entity.__init__(self)
         self.max_timestamp = 0
         sorted_keyframes = {}
         sorted_easing_fns = {}
@@ -143,6 +146,7 @@ class Animation:
         self.ended = True
         self.timer = 0
 
+    @on_tick
     def update(self, dt: int) -> None:
         """Update the animation."""
         if self.running and not self.ended:
