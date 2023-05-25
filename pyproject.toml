@@ -3,7 +3,6 @@ name = "pygskin"
 version = "0.0.1"
 dependencies = [
     "pygame-ce",
-    "filetype",
     "ruamel.yaml",
 ]
 
