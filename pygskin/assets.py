@@ -1,85 +1,132 @@
-from functools import partial
-from typing import Any
-from typing import Callable
-from typing import ClassVar
+from __future__ import annotations
 
-import filetype
+from functools import cache
+from pathlib import Path
+from typing import Any
+from typing import Protocol
+
 import pygame
 
 from pygskin.pubsub import message
 
 
-class Asset:
+class Assets:
+    """
+    Assets provides attribute access to static assets in a directory.
+
+    >>> import tempfile
+    >>> with tempfile.TemporaryDirectory() as dirname:
+    ...     data = bytes.fromhex('4749463839610100010000ff002c00000000010001000002003b')
+    ...     with open(f"{dirname}/foo.gif", "wb") as f:
+    ...         _ = f.write(data)
+    ...     _ = pygame.init()
+    ...     _ = pygame.display.set_mode((1, 1), pygame.HIDDEN)
+    ...     Assets(Path(dirname)).foo.get_size()
+    (1, 1)
+    """
+
+    def __init__(self, path: Path | None = None) -> None:
+        self.path = path or Path(__file__).parent / "assets"
+        self.cache = {}
+        self.load_started = message()
+        self.asset_loaded = message()
+        self.load_finished = message()
+
+    def load(self) -> None:
+        """Load all assets into cache."""
+        children = [
+            (f, f.stat().st_size)
+            for f in Path(self.path).rglob('**/*')
+            if self.is_asset(f)
+        ]
+        self.load_started(children=children)
+        for child in children:
+            if child.is_dir():
+                subdir = Assets(child)
+                subdir.asset_loaded.subscribe(self.asset_loaded)
+                subdir.load()
+                self.cache[child.name] = subdir
+            else:
+                self.cache[child.name] = Asset.load(child)
+                self.asset_loaded(child)
+        self.loaded = True
+        self.load_finished()
+
+    def __getattr__(self, name: str) -> Any:
+        """Enable attribute access."""
+        try:
+            return self.cache[name]
+        except KeyError:
+            pass
+
+        path = self.path / name
+        if path.is_dir():
+            return self.cache.setdefault(name, Assets(path))
+
+        return self.cache.setdefault(name, Asset.load(path))
+
+
+class Asset(Protocol):
     class NotRecognised(Exception):
         pass
 
-    load: ClassVar[Callable[[str], Any]]
-
-    def __init__(self, filename: str) -> None:
-        self.filename = filename
-        self._loaded = False
-        self.loaded = message()
-
-    def ensure_loaded(self) -> None:
-        if not self._loaded:
-            self.data = self.load(self.filename)
-            self._loaded = True
-            self.loaded()
-
     @classmethod
-    def prep(cls, filename: str) -> None:
-        kind = filetype.guess(filename)
-        if kind is None:
-            raise Asset.NotRecognised(filename)
+    def load(cls, path: Path) -> Any:
+        if not path.is_file():
+            path = next(path.parent.glob(f"{path.stem}.*"))
+        for AssetType in cls.__subclasses__():
+            if path.suffix in AssetType.suffixes:
+                return AssetType(path)
 
-        if kind.mime.startswith("image/"):
-            pygame.display.init()
-            return Image(filename)
+        raise cls.NotRecognised(path)
 
-        if kind.mime.startswith("audio/"):
-            if pygame.mixer and not pygame.mixer.get_init():
-                pygame.mixer.init()
-            if kind.mime.startwith("audio/mp3"):
-                return Music(filename)
-            return Sound(filename)
-
-        if kind.mime.startswith("application/font-"):
-            if not pygame.font.get_init():
-                pygame.font.init()
-            return Font(filename)
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self.data, name)
 
 
 class Image(Asset):
-    load = pygame.image.load
+    suffixes = [".gif", ".jpg", ".png"]
+
+    def __init__(self, path: Path) -> None:
+        pygame.display.init()
+        self.data = pygame.image.load(path)
 
 
 class Sound(Asset):
-    load = pygame.mixer.Sound
+    suffixes = [".mp3", ".wav"]
 
-    def __init__(self, filename: str, volume: float = 1.0) -> None:
-        super().__init__(filename)
-        self.loaded.subscribe(partial(self.data.set_volume, volume))
+    def __init__(self, path: Path) -> None:
+        pygame.mixer.init()
+        self.data = pygame.mixer.Sound(path)
 
     def play(self, *args, **kwargs) -> None:
-        self.ensure_loaded()
-        self.data.play()
+        self.data.play(**kwargs)
 
 
-class Music(Asset):
+class Music(Sound):
     load = pygame.mixer.music.load
 
     REPEAT_FOREVER = -1
 
-    def __init__(self, filename: str, volume: float = 1.0) -> None:
-        super().__init__(filename)
-        self.loaded.subscribe(partial(pygame.mixer.music.set_volume, volume))
+    def __init__(self, path: Path) -> None:
+        pygame.mixer.init()
+        pygame.mixer.music.load(path)
 
-    def play(self, repeat_count: int = REPEAT_FOREVER) -> None:
-        self.ensure_loaded()
-        pygame.mixer.music.play(loops=repeat_count)
+    def play(self, repeat_count: int = REPEAT_FOREVER, **kwargs) -> None:
+        if not self._loaded:
+            raise Music.NotLoaded(self.filename)
+        if "loops" in kwargs:
+            repeat_count = kwargs.pop("loops")
+        pygame.mixer.music.play(loops=repeat_count, **kwargs)
 
 
 class Font(Asset):
-    def __init__(self, filename: str, size: int = 30) -> None:
-        super().__init__(filename)
-        self.load = lambda fname: pygame.font.Font(fname, size)
+    suffixes = [".ttf"]
+
+    def __init__(self, path: Path, size: int = 30) -> None:
+        pygame.font.init()
+        self.path = path
+
+    @cache
+    def size(self, size: int = 30) -> pygame.font.Font:
+        return pygame.font.Font(self.path, size)

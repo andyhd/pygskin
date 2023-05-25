@@ -8,7 +8,10 @@ class Display(ecs.System):
 
     def __init__(self, **options) -> None:
         size = options.setdefault("size", (800, 600))
-        self.window = pygame.display.set_mode(size)
+        self.window = pygame.display.set_mode(
+            size,
+            options.setdefault("flags", 0),
+        )
         self.surface = pygame.Surface(size).convert_alpha()
         pygame.display.set_caption(options.setdefault("title", "pygame window"))
 

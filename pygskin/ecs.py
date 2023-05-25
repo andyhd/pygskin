@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from typing import Any
-from typing import Callable
+from typing import ClassVar
+from typing import Protocol
 from typing import Type
 
 
 class Entity:
-    instances: list[Entity] = []
+    instances: ClassVar[list[Entity]] = []
 
     def __init__(self) -> None:
         self.instances.append(self)
@@ -22,31 +23,25 @@ class Entity:
 
         return self.__getattribute__(name)
 
-    @classmethod
-    def has(cls, *components: Type) -> Callable[[Entity], bool]:
-        def check(entity):
-            for component in components:
-                try:
-                    getattr(entity, component.__name__)
-                except AttributeError:
-                    return False
-            return True
-
-        return check
+    def has(self, *components: Type) -> bool:
+        for component in components:
+            try:
+                getattr(self, component.__name__)
+            except AttributeError:
+                return False
+        return True
 
 
-class System:
-    query: Callable[[Entity], bool]
-
+class System(Protocol):
     def update(self, entities: list[Entity], **kwargs) -> None:
-        for entity in self.filter(entities):
+        for entity in filter(self.filter, entities):
             self.update_entity(entity, **kwargs)
 
-    def filter(self, entities: list[Entity]) -> list[Entity]:
-        return filter(self.__class__.query, entities)
+    def filter(self, entity: Entity) -> bool:
+        return True
 
     def update_entity(self, entity: Entity, **kwargs) -> None:
-        pass
+        ...
 
 
 class Container:

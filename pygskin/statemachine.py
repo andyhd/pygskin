@@ -1,6 +1,9 @@
+from dataclasses import dataclass, field
 from typing import Callable
 from typing import Iterator
 from typing import TypeVar
+
+from pygskin.pubsub import message
 
 Input = TypeVar("Input")
 State = TypeVar("State")
@@ -8,10 +11,8 @@ Transition = Callable[[Input], State | None]
 TransitionTable = dict[State, list[Transition]]
 
 
-def StateMachine(
-    transition_table: TransitionTable,
-    state: State | None = None,
-) -> Iterator[State | None]:
+@dataclass
+class StateMachine:
     """
     A state machine implemented with a coroutine
 
@@ -38,7 +39,7 @@ def StateMachine(
     ...         "unlocked": [lock],
     ...     },
     ... )
-    >>> next(safe)
+    >>> safe.state
     'locked'
     >>> safe.send('A')
     'locked'
@@ -55,11 +56,30 @@ def StateMachine(
     >>> safe.send(3)
     'unlocked'
     """
-    if state is None:
-        state = next(iter(transition_table))
-    while state:
-        input = yield state
-        for transition in transition_table[state]:
-            if next_state := transition(input):
-                state = next_state
-                break
+
+    transition_table: TransitionTable
+    state: State | None = None
+
+    def __post_init__(self) -> None:
+        self.started = message()
+        self.received_input = message()
+        self.triggered = message()
+        self.set_state = message()
+        self._statemachine = self._coro()
+        next(self._statemachine)
+
+    def _coro(self) -> Iterator[State | None]:
+        self.started()
+        if self.state is None:
+            self.state = next(iter(self.transition_table))
+        while self.state:
+            input = yield self.state
+            self.received_input(input)
+            for transition in self.transition_table[self.state]:
+                if next_state := transition(input):
+                    self.triggered(input, self.state, next_state)
+                    self.state = next_state
+                    break
+
+    def send(self, *args, **kwargs) -> State | None:
+        return self._statemachine.send(*args, **kwargs)

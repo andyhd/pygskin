@@ -60,7 +60,10 @@ class message:
 
     def __get__(self, obj: Any, obj_type: Any = None) -> message:
         if obj and obj != self.obj:
-            msg = type(self)(partial(self.callback, obj), obj=obj)
+            callback = None
+            if self.callback:
+                callback = partial(self.callback, obj)
+            msg = type(self)(callback, obj=obj)
             setattr(obj, self.name, msg)
             return msg
         return self

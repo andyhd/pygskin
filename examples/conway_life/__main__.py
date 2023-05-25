@@ -7,12 +7,9 @@ from typing import Iterator
 import pygame
 
 from pygskin import ecs
-from pygskin.events import EventMap
 from pygskin.display import Display
-from pygskin.events import KeyDown
-from pygskin.events import MouseButtonDown
-from pygskin.events import MouseButtonUp
-from pygskin.events import MouseMotion
+from pygskin.events import Key
+from pygskin.events import Mouse
 from pygskin.grid import Grid
 from pygskin.text import Text
 from pygskin.window import Window
@@ -110,8 +107,8 @@ class World(ecs.Entity, pygame.sprite.Sprite):
 
 
 class GenerationSystem(ecs.System):
-    def query(x):
-        return isinstance(x, World)
+    def filter(self, entity: ecs.Entity) -> bool:
+        return isinstance(entity, World)
 
     def update_entity(self, entity: ecs.Entity, **state) -> None:
         if not state["paused"]:
@@ -153,18 +150,14 @@ class Game(Window):
         self.pause_label.rect.center = self.world.rect.center
         self.pause_label.add(Display.sprites)
 
-        self.event_map = EventMap(
-            {
-                KeyDown(pygame.K_ESCAPE): self.quit,
-                KeyDown(pygame.K_c): self.clear,
-                KeyDown(pygame.K_g): self.gosper_gun,
-                KeyDown(pygame.K_p): self.toggle_pause,
-                KeyDown(pygame.K_r): self.randomize,
-                MouseButtonDown(1): self.toggle_painting,
-                MouseButtonUp(1): self.toggle_painting,
-                MouseMotion((1, 0, 0)): self.paint,
-            }
-        )
+        Key.escape.down.subscribe(self.quit)
+        Key.c.down.subscribe(self.clear)
+        Key.g.down.subscribe(self.gosper_gun)
+        Key.p.down.subscribe(self.toggle_pause)
+        Key.r.down.subscribe(self.randomize)
+        Mouse.button[1].down.subscribe(self.toggle_painting)
+        Mouse.button[1].up.subscribe(self.toggle_painting)
+        Mouse.motion.subscribe(self.paint)
 
     def update(self):
         super().update(**self.state)

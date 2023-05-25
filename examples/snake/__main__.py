@@ -10,16 +10,19 @@ from pygame.sprite import Sprite
 from pygame.sprite import collide_rect
 
 from pygskin import ecs
-from pygskin.assets import Sound
+from pygskin.assets import Assets
 from pygskin.direction import Direction
-from pygskin.events import EventMap
+from pygskin.events import Key
 from pygskin.display import Display
 from pygskin.clock import Clock
-from pygskin.events import KeyDown
+from pygskin.clock import on_tick
 from pygskin.grid import Grid
 from pygskin.pubsub import message
 from pygskin.spritesheet import Spritesheet
 from pygskin.window import Window
+
+
+assets = Assets(Path(__file__).parent / "assets")
 
 
 class Config:
@@ -52,17 +55,23 @@ SNAKE_SPRITE_MAP = {
 }
 
 
-@dataclass
 class Segment(Sprite):
-    rect: pygame.Rect
-    direction: Direction
-    spritesheet: Spritesheet
-    turning_to: Direction | None = None
-    is_head: bool = False
-    is_tail: bool = False
-
-    def __post_init__(self):
+    def __init__(
+        self,
+        rect: pygame.Rect,
+        direction: Direction,
+        spritesheet: Spritesheet,
+        turning_to: Direction | None = None,
+        is_head: bool = False,
+        is_tail: bool = False,
+    ) -> None:
         super().__init__()
+        self.rect = rect
+        self.direction = direction
+        self.spritesheet = spritesheet
+        self.turning_to = turning_to
+        self.is_head = is_head
+        self.is_tail = is_tail
         if self.turning_to is None:
             self.turning_to = self.direction
 
@@ -85,41 +94,45 @@ class Segment(Sprite):
         return f"<Segment {self.rect} {self.is_head=} {self.is_tail=}>"
 
 
-class Body(list[Segment]):
-    pass
-
-
-class Flags(dict[str, bool]):
-    pass
-
-
 class Snake(ecs.Entity):
     def __init__(self, pos, facing, length, spritesheet):
         super().__init__()
         rect = pygame.Rect(*pos, *Config.CELL_SIZE)
-        self.body = Body(
-            [
-                Segment(
-                    rect.move(
-                        *(
-                            pygame.math.Vector2(
-                                facing.vector.elementwise() * Config.CELL_SIZE,
-                            ).elementwise()
-                            * -i,
-                        ),
+        self.body = [
+            Segment(
+                rect.move(
+                    *(
+                        pygame.math.Vector2(
+                            facing.vector.elementwise() * Config.CELL_SIZE,
+                        ).elementwise()
+                        * -i,
                     ),
-                    facing,
-                    spritesheet,
-                    is_head=i == 0,
-                    is_tail=i == length - 1,
-                )
-                for i in range(length)
-            ]
-        )
-        self.flags = Flags(
-            alive=True,
-            is_eating=False,
-        )
+                ),
+                facing,
+                spritesheet,
+                is_head=i == 0,
+                is_tail=i == length - 1,
+            )
+            for i in range(length)
+        ]
+        self.alive = True
+        self.is_eating = False,
+        self.interval = 1000 / 7
+        self.timer = self.interval
+
+    @on_tick
+    def update_entity(self, dt: int) -> None:
+        if self.alive:
+            self.timer -= dt
+            if self.timer <= 0:
+                self.timer = self.interval
+
+                self.grow()
+
+                if self.is_eating:
+                    self.is_eating = False
+                else:
+                    self.shrink()
 
     @property
     def head(self):
@@ -152,14 +165,11 @@ class Snake(ecs.Entity):
 
     @message
     def die(self, *_):
-        self.Flags["alive"] = False
+        self.alive = False
 
     @message
     def eat(self, *_):
-        self.Flags["is_eating"] = True
-
-    def __repr__(self):
-        return f"<Snake {self.flags} {self.body}>"
+        self.is_eating = True
 
 
 class Food(Sprite, ecs.Entity):
@@ -172,34 +182,18 @@ class Food(Sprite, ecs.Entity):
 
     def place(self, world):
         available_cells = list(
-            world["cells"].difference(*(s.rect.topleft for s in world["player"].Body))
+            world["cells"].difference(*(s.rect.topleft for s in world["player"].body))
         )
         self.rect.topleft = random.choice(available_cells)
 
 
-class GrowShrinkSnakes(IntervalSystem):
-    # TODO refactor IntervalSystem as a callback that can be added to Clock
-    # eg Clock.every(msec=1000 / 7).subscribe(GrowShrinkSnakes())
-    interval = 1000 / 7
-    query = ecs.Entity.has(Body, Flags)
-
-    def update_entity(self, snake, **kwargs):
-        if snake.Flags["alive"]:
-            snake.grow()
-
-            if snake.Flags["is_eating"]:
-                snake.Flags["is_eating"] = False
-            else:
-                snake.shrink()
-
-
 class Eating(ecs.System):
-    def query(x):
-        return isinstance(x, Food)
+    def filter(self, entity: ecs.Entity) -> bool:
+        return isinstance(entity, Food)
 
     def update_entity(self, food, **world):
         snake = world["player"]
-        if snake.Flags["is_eating"]:
+        if snake.is_eating:
             return
         if collide_rect(snake.head, food):
             snake.eat(food)
@@ -207,12 +201,13 @@ class Eating(ecs.System):
 
 
 class Collisions(ecs.System):
-    query = ecs.Entity.has(Body, Flags)
+    def filter(self, entity: ecs.Entity) -> bool:
+        return isinstance(entity, Snake)
 
     def update_entity(self, snake, **world):
-        for segment in snake.Body:
+        for segment in snake.body:
             if (
-                snake.Flags["alive"]
+                snake.alive
                 and segment != snake.head
                 and collide_rect(snake.head, segment)
             ):
@@ -234,32 +229,26 @@ class Game(Window):
 
         self.systems.extend(
             [
-                GrowShrinkSnakes(fps=Config.FPS),
+                Clock(fps=Config.FPS),
                 Eating(),
                 Collisions(),
             ]
         )
 
-        self.event_map.update({KeyDown(pygame.K_ESCAPE): self.quit})
-
-        sprites = pygame.image.load(Path(__file__).parent / "images/snake.png")
-        spritesheet = Spritesheet(sprites, Grid(4, 4), SNAKE_SPRITE_MAP)
+        spritesheet = Spritesheet(assets.snake, Grid(4, 4), SNAKE_SPRITE_MAP)
 
         player = Snake(Config.CELL_SIZE, Direction.RIGHT, 3, spritesheet)
-        player.event_map = EventMap(
-            {
-                KeyDown(pygame.K_LEFT): partial(player.turn, Direction.LEFT),
-                KeyDown(pygame.K_RIGHT): partial(player.turn, Direction.RIGHT),
-                KeyDown(pygame.K_UP): partial(player.turn, Direction.UP),
-                KeyDown(pygame.K_DOWN): partial(player.turn, Direction.DOWN),
-            }
-        )
 
-        die_sound = Sound(Path(__file__).parent / "audio/die.wav")
-        eat_sound = Sound(Path(__file__).parent / "audio/eat.wav")
+        # controls
+        Key.escape.down.subscribe(self.quit)
+        Key.left.down.subscribe(partial(player.turn, Direction.LEFT))
+        Key.right.down.subscribe(partial(player.turn, Direction.RIGHT))
+        Key.up.down.subscribe(partial(player.turn, Direction.UP))
+        Key.down.down.subscribe(partial(player.turn, Direction.DOWN))
 
-        player.die.subscribe(die_sound.play)
-        player.eat.subscribe(eat_sound.play)
+        player.die.subscribe(assets.die_sound.play)
+        player.eat.subscribe(assets.eat_sound.play)
+
         self.world["player"] = player
 
         food = Food(spritesheet)

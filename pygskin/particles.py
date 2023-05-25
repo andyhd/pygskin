@@ -103,6 +103,7 @@ class Emitter(ecs.Entity):
     streams: Iterable[ParticleStream] = field(default_factory=list)
     max_particles: int = 0
     groups: Iterable[pygame.sprite.Group] = field(default_factory=list)
+    running: bool = True
 
     def __post_init__(self) -> None:
         ecs.Entity.__init__(self)
