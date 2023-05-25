@@ -64,7 +64,6 @@ class StateMachine:
         self.started = message()
         self.received_input = message()
         self.triggered = message()
-        self.set_state = message()
         self._statemachine = self._coro()
         next(self._statemachine)
 
