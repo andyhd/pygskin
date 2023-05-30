@@ -64,6 +64,7 @@ class StateMachine:
         self.started = message()
         self.received_input = message()
         self.triggered = message()
+        self.not_triggered = message()
         self._statemachine = self._coro()
         next(self._statemachine)
 
@@ -79,6 +80,8 @@ class StateMachine:
                     self.triggered(input, self.state, next_state)
                     self.state = next_state
                     break
+            else:
+                self.not_triggered(input, self.state)
 
     def send(self, *args, **kwargs) -> State | None:
         return self._statemachine.send(*args, **kwargs)
