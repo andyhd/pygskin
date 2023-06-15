@@ -99,7 +99,7 @@ class Particle(pygame.sprite.Sprite, ecs.Entity):
 
 @dataclass
 class Emitter(ecs.Entity):
-    pos: Vector = Vector2(0, 0)
+    pos: Vector = field(default_factory=lambda: Vector2(0, 0))
     streams: Iterable[ParticleStream] = field(default_factory=list)
     max_particles: int = 0
     groups: Iterable[pygame.sprite.Group] = field(default_factory=list)
@@ -142,7 +142,7 @@ class Age:
 
 @dataclass
 class Gravity:
-    gravity: Vector = Vector2(0, 9.8)
+    gravity: Vector = field(default_factory=lambda: Vector2(0, 9.8))
 
     def __post_init__(self) -> None:
         self.gravity = Vector2(*self.gravity)
