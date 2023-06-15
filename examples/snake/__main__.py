@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import random
-from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
 
@@ -121,7 +120,7 @@ class Snake(ecs.Entity):
         self.timer = self.interval
 
     @on_tick
-    def update_entity(self, dt: int) -> None:
+    def update_entity(self, dt: int, **_) -> None:
         if self.alive:
             self.timer -= dt
             if self.timer <= 0:

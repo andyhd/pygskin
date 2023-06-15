@@ -3,14 +3,17 @@ from typing import Iterable
 import pygame
 from pygame.sprite import Sprite
 
+from pygskin import ecs
 
-class Parallax(Sprite):
+
+class Parallax(ecs.Entity, Sprite):
     # TODO use a LayeredUpdates sprite group
     def __init__(
         self,
         rect: pygame.Rect,
         layers: list[tuple[float, Sprite]],
     ) -> None:
+        ecs.Entity.__init__(self)
         Sprite.__init__(self)
         self.rect = pygame.Rect(rect)
         self.layers = []
@@ -23,6 +26,9 @@ class Parallax(Sprite):
             self.layers.append((divisor, layer))
         self._image = None
 
+    def force_redraw(self) -> None:
+        self._image = None
+
     def add_layer(self, layer: Sprite | pygame.Surface, divisor: float) -> None:
         if isinstance(layer, pygame.Surface):
             sprite = Sprite()
@@ -30,11 +36,15 @@ class Parallax(Sprite):
             sprite.rect = pygame.FRect(layer.get_rect())
             layer = sprite
         self.layers.append((divisor, layer))
+        self.force_redraw()
 
     def scroll(self, vector: Iterable[float]) -> None:
+        vector = pygame.math.Vector2(*vector)
+        if vector:
+            self.force_redraw()
         for divisor, layer in self.layers:
             if divisor != 0:
-                layer.rect.center += pygame.math.Vector2(*vector) / divisor
+                layer.rect.center += vector / divisor
             if layer.rect.left > self.rect.left + layer.rect.width:
                 layer.rect.right = self.rect.left
             if layer.rect.right < self.rect.right - layer.rect.width:
@@ -60,6 +70,7 @@ class Parallax(Sprite):
     def image(self) -> pygame.Surface:
         if not self._image:
             self._image = pygame.Surface(self.rect.size).convert_alpha()
+            self._image.fill((0, 0, 0, 0))
             self.scroll((0, 0))
             self.draw(self._image)
         return self._image

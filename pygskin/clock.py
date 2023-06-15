@@ -27,7 +27,7 @@ class Clock(ecs.System):
         super().update(entities, **kwargs)
 
     def update_entity(self, entity: ecs.Entity, **kwargs) -> None:
-        entity.TickHandler(self.ms_since_last_tick)
+        entity.TickHandler(self.ms_since_last_tick, **kwargs)
 
 
 # class IntervalSystem(TickSystem):

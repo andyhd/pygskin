@@ -51,11 +51,10 @@ class Animation(ecs.Entity):
     {'x': 5.5}
     """
 
-    FOREVER: ClassVar[int] = -1
-
     keyframes: dict[Timestamp, Frame]
     easing: dict[Timestamp, EasingFunction] = field(default_factory=dict)
-    loops: int = 0
+    lerp_fn: Callable | None = None
+    loops: float = 0.0  # float to allow math.inf
 
     def __post_init__(self) -> None:
         """Ensure keyframes are sorted by timestamp."""
@@ -118,6 +117,8 @@ class Animation(ecs.Entity):
 
     def lerp(self, start: Frame, end: Frame, quotient: float) -> Frame:
         """Linear interpolation between frame values."""
+        if self.lerp_fn:
+            return self.lerp_fn(start, end, quotient)
         if isinstance(start, dict):
             return {
                 key: self.lerp(val, end[key], quotient) for key, val in start.items()
@@ -147,11 +148,11 @@ class Animation(ecs.Entity):
         self.timer = 0
 
     @on_tick
-    def update(self, dt: int) -> None:
+    def update(self, dt: int, **kwargs) -> None:
         """Update the animation."""
         if self.running and not self.ended:
             self.timer += dt
-            self.frame_changed()
+            self.frame_changed(self.current_frame())
             if self.timer >= self.max_timestamp:
                 if self.loops:
                     self.loop()
