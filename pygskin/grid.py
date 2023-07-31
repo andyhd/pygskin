@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Iterable
 from typing import Iterator
 
 from pygame import Rect
@@ -37,7 +38,7 @@ class Grid:
             for col in range(self.cols):
                 yield (col, row)
 
-    def __contains__(self, xy: tuple[int, int]) -> bool:
+    def __contains__(self, xy: Iterable[int]) -> bool:
         x, y = xy
         return 0 <= y < self.rows and 0 <= x < self.cols
 

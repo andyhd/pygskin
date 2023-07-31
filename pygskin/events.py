@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Callable
+
 import pygame
 
 from pygskin.pubsub import message
@@ -21,9 +23,8 @@ class KeyMeta(type):
 
     def __getattr__(self, name: str) -> Key:
         """Get Key instance by name"""
-        keycode = KEYCODE_MAP.get(name)
-        if keycode is not None:
-            key = Key(keycode)
+        if name in KEYCODE_MAP:
+            key = Key(KEYCODE_MAP[name])
             setattr(self, name, key)
             return key
 

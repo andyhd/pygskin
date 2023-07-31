@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from typing import Any
+from typing import Callable
 from typing import ClassVar
 from typing import Protocol
 from typing import Type
+from typing import get_type_hints
 
 
 class Entity:
@@ -42,6 +44,26 @@ class System(Protocol):
 
     def update_entity(self, entity: Entity, **kwargs) -> None:
         ...
+
+
+def system(fn: Callable) -> System:
+    hints = get_type_hints(fn)
+    entity_class = next(iter(hints.values()))
+
+    def filter_method(self, entity) -> bool:
+        return isinstance(entity, entity_class)
+
+    def update_entity_method(self, *args, **kwargs) -> None:
+        fn(*args, **kwargs)
+
+    return type(
+        fn.__name__,
+        (System,),
+        {
+            "filter": filter_method,
+            "update_entity": update_entity_method,
+        },
+    )
 
 
 class Container:

@@ -10,11 +10,13 @@ from pygskin.grid import Grid
 @dataclass
 class Spritesheet:
     image: pygame.Surface
-    grid: Grid
+    grid: Grid | tuple[int, int]
     names: dict[str, tuple[int, int]] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         self.rect = self.image.get_size()
+        if not isinstance(self.grid, Grid):
+            self.grid = Grid(*self.grid)
         self.grid.map_to(self.rect)
 
     def __getitem__(self, key: str | tuple[int, int]) -> pygame.Surface:
