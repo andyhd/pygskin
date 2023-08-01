@@ -6,7 +6,6 @@ from typing import Iterator
 
 import pygame
 
-from pygskin import ecs
 from pygskin.display import Display
 from pygskin.events import Key
 from pygskin.events import Mouse
@@ -46,9 +45,8 @@ class CellGrid(Grid):
             yield self[xy]
 
 
-class World(ecs.Entity, pygame.sprite.Sprite):
+class World(pygame.sprite.Sprite):
     def __init__(self, grid: Grid, cell_size: tuple[int, int]) -> None:
-        ecs.Entity.__init__(self)
         pygame.sprite.Sprite.__init__(self)
         self.grid = grid
         self.grid.cell_size = cell_size
@@ -106,15 +104,6 @@ class World(ecs.Entity, pygame.sprite.Sprite):
         return self.surface
 
 
-class GenerationSystem(ecs.System):
-    def filter(self, entity: ecs.Entity) -> bool:
-        return isinstance(entity, World)
-
-    def update_entity(self, entity: ecs.Entity, **state) -> None:
-        if not state["paused"]:
-            entity.next_generation()
-
-
 class Game(Window):
     def __init__(self) -> None:
         self.world = World(Grid(160, 160), cell_size=(5, 5))
@@ -127,8 +116,6 @@ class Game(Window):
             "painting": False,
             "world": self.world,
         }
-
-        self.systems.append(GenerationSystem())
 
         self.pause_label = Text(
             (
@@ -161,6 +148,8 @@ class Game(Window):
 
     def update(self):
         super().update(**self.state)
+        if not self.state["paused"]:
+            self.world.next_generation()
 
     def randomize(self, *args) -> None:
         self.world.randomize()
