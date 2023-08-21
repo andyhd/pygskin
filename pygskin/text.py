@@ -64,7 +64,7 @@ class Text(pygame.sprite.Sprite):
         width, height = 0, 0
         for line in wrap(
             self.text,
-            lambda s: self.wrap_width and self.font.size(s)[0] > self.wrap_width
+            lambda s: self.wrap_width and self.font.size(s)[0] > self.wrap_width,
         ):
             image = self.font.render(line, self.antialias, self.color)
             rect = image.get_rect(top=height)
@@ -95,6 +95,13 @@ def wrap(
     should_wrap: Callable[[str], int] = len,
     break_words_at: str = " ",
 ) -> list[str]:
+    """
+    Wraps a string at word boundaries if callback is True.
+
+    >>> font = pygame.Font(None, 30)
+    >>> wrap("This line should be wrapped", lambda s: font.size(s)[0] > 100)
+    ['This line', 'should be wrapped']
+    """
 
     if not text:
         return []
@@ -105,26 +112,41 @@ def wrap(
         return [line] + wrap(text, should_wrap, break_words_at)
 
     last_word_end = 0
-    remainder = ""
 
     # find last word break before max_width
     for i, char in enumerate(line):
         if char in break_words_at:
             if should_wrap(line[:i]):
                 remainder = line[last_word_end + 1 :]
+                text = remainder + ("\n" if remainder and text else "") + text
                 line = line[:last_word_end]
                 break
             last_word_end = i
-
-    text = remainder + ("\n" if remainder and text else "") + text
 
     return [line] + wrap(text, should_wrap, break_words_at)
 
 
 def pad(
-    size: tuple[int, int],
-    padding: Iterable[int] | None
+    size: tuple[int, int], padding: Iterable[int] | None
 ) -> tuple[tuple[int, int], tuple[int, int]]:
+    """
+    Returns the size and topleft coordinates of an area of `size` original size
+    after applying `padding`.
+
+    The padding property may be specified using one, two, three, or four
+    integers.
+
+    * When one value is specified, it applies the same padding to all four sides.
+    * When two values are specified, the first padding applies to the top and
+      bottom, the second to the left and right.
+    * When three values are specified, the first padding applies to the top, the
+      second to the right and left, the third to the bottom.
+    * When four values are specified, the paddings apply to the top, right,
+      bottom, and left in that order (clockwise).
+
+    >>> pad((100, 100), [10, 20, 30, 40])
+    ((160, 140), (40, 10))
+    """
     width, height = size
     pad_left = pad_top = 0
 

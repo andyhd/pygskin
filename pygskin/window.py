@@ -5,6 +5,7 @@ import asyncio
 import pygame
 
 from pygskin import ecs
+from pygskin.clock import Clock
 from pygskin.display import Display
 from pygskin.events import EventSystem
 from pygskin.events import Quit
@@ -19,6 +20,7 @@ class Window(ecs.Entity, ecs.Container):
         self.systems.extend(
             [
                 Display(**config),
+                Clock(**config),
                 EventSystem(),
             ]
         )

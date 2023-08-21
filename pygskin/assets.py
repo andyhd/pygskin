@@ -36,11 +36,11 @@ class Assets:
         """Load all assets into cache."""
         children = [
             (f, f.stat().st_size)
-            for f in Path(self.path).rglob('**/*')
-            if self.is_asset(f)
+            for f in Path(self.path).rglob("**/*")
+            if self.is_recognised_asset(f)
         ]
         self.load_started(children=children)
-        for child in children:
+        for child, size in children:
             if child.is_dir():
                 subdir = Assets(child)
                 subdir.asset_loaded.subscribe(self.asset_loaded)
@@ -64,6 +64,15 @@ class Assets:
             return self.cache.setdefault(name, Assets(path))
 
         return self.cache.setdefault(name, Asset.load(path))
+
+    def __getitem__(self, name: str) -> Any:
+        return self.__getattr__(name)
+
+    def is_recognised_asset(self, path: Path) -> bool:
+        for AssetType in Asset.__subclasses__():
+            if path.suffix in AssetType.suffixes:
+                return True
+        return False
 
 
 class Asset(Protocol):
@@ -101,6 +110,15 @@ class Sound(Asset):
 
     def play(self, *args, **kwargs) -> None:
         self.data.play(**kwargs)
+
+    def stop(self) -> None:
+        self.data.stop()
+
+    def set_volume(self, value: float) -> None:
+        self.data.set_volume(value)
+
+    def fadeout(self, ms: int) -> None:
+        self.data.fadeout(ms)
 
 
 class Music(Sound):

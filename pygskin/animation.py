@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from dataclasses import field
 from typing import Callable
-from typing import ClassVar
 from typing import Protocol
 from typing import TypeVar
 from typing import runtime_checkable
