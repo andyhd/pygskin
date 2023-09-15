@@ -15,11 +15,13 @@ TODO:
 
 from __future__ import annotations
 
+import contextlib
 import random
 from dataclasses import dataclass
 from enum import IntEnum
 from pathlib import Path
-from typing import Protocol, runtime_checkable
+from typing import Protocol
+from typing import runtime_checkable
 
 import pygame
 from pygame.math import Vector2
@@ -27,13 +29,17 @@ from pygame.math import Vector2
 from pygskin import ecs
 from pygskin.animation import Animation
 from pygskin.assets import Assets
-from pygskin.clock import Clock, Timer, on_tick
+from pygskin.clock import Clock
+from pygskin.clock import Timer
+from pygskin.clock import on_tick
 from pygskin.display import Display
-from pygskin.events import Key
+from pygskin.events import KeyDown
+from pygskin.events import KeyUp
+from pygskin.events import Quit
+from pygskin.events import event_listener
 from pygskin.pubsub import message
 from pygskin.text import Text
 from pygskin.window import Window
-
 
 assets = Assets(Path(__file__).parent / "assets")
 
@@ -72,7 +78,7 @@ class Mob(ecs.Entity, Drawable):
         angle: float = 0,
         spin: float = 0,
     ) -> None:
-        super().__init__()
+        ecs.Entity.__init__(self)
 
         self.pos = pos or random_position()
         self.velocity = velocity or Vector2(0, 0)
@@ -99,10 +105,8 @@ class Mob(ecs.Entity, Drawable):
         )
 
     def kill(self) -> None:
-        try:
+        with contextlib.suppress(ValueError):
             ecs.Entity.instances.remove(self)
-        except ValueError:
-            pass
 
     def collides_with(self, other: Mob) -> bool:
         return self.pos.distance_to(other.pos) < (self.radius + other.radius)
@@ -247,24 +251,29 @@ class Ship(Mob):
         self.alive = False
         self.visible = False
 
-    def spin_left(self, *_) -> None:
+    @event_listener
+    def spin_left(self, _: KeyDown.LEFT) -> None:
         if self.alive:
             self.spin = -20
 
-    def spin_right(self, *_) -> None:
+    @event_listener
+    def spin_right(self, _: KeyDown.RIGHT) -> None:
         if self.alive:
             self.spin = 20
 
-    def spin_stop(self, *_) -> None:
+    @event_listener
+    def spin_stop(self, _: KeyUp.LEFT | KeyUp.RIGHT | None = None) -> None:
         if self.alive:
             self.spin = 0
 
-    def thrust(self, *_) -> None:
+    @event_listener
+    def thrust(self, _: KeyDown.UP) -> None:
         if self.alive:
             self.thruster_on = True
             assets.thrust.play(loops=-1, fade_ms=100)
 
-    def thrust_stop(self, *_) -> None:
+    @event_listener
+    def thrust_stop(self, _: KeyUp.UP | None = None) -> None:
         if self.alive:
             self.thruster_on = False
             assets.thrust.fadeout(200)
@@ -279,11 +288,13 @@ class Ship(Mob):
     def acceleration(self, _) -> None:
         pass
 
-    def stop(self, *_) -> None:
+    @event_listener
+    def stop(self, _: KeyDown.DOWN | None = None) -> None:
         if self.alive:
             self.velocity = Vector2(0, 0)
 
-    def fire(self, *_) -> None:
+    @event_listener
+    def fire(self, _: KeyDown.SPACE) -> None:
         if self.alive:
             assets.fire.play()
             Bullet(
@@ -292,14 +303,16 @@ class Ship(Mob):
                 velocity=self.velocity + Vector2(0, 0.15).rotate(self.angle),
             )
 
-    def shield_on(self, *_) -> None:
+    @event_listener
+    def shield_on(self, _: KeyDown.S) -> None:
         timer = self.shield_timer
         if timer.started:
             timer.resume()
         else:
             timer.start()
 
-    def shield_off(self, *_) -> None:
+    @event_listener
+    def shield_off(self, _: KeyUp.S) -> None:
         self.shield_timer.pause()
 
     def shield_active(self) -> bool:
@@ -353,6 +366,8 @@ class World(pygame.sprite.Sprite):
         for _ in range(self.num_asteroids):
             self.add_asteroid(Asteroid())
 
+        self.ship.invulnerability_timer.start()
+
     @property
     def image(self) -> pygame.Surface:
         self.surface.blit(assets.background.data, (0, 0))
@@ -375,9 +390,8 @@ class World(pygame.sprite.Sprite):
         self.asteroids.remove(asteroid)
         self.add_score(asteroid.score)
 
-        if self.score % 10000 <= asteroid.score:
-            if self.lives < 10:
-                self.lives += 1
+        if self.score % 10000 <= asteroid.score and self.lives < 10:
+            self.lives += 1
 
         Explosion(pos=asteroid.pos)
         for fragment in asteroid.fragment():
@@ -399,7 +413,8 @@ class World(pygame.sprite.Sprite):
     def __hash__(self) -> str:
         return hash(id(self))
 
-    def toggle_pause(self, *_) -> None:
+    @event_listener
+    def toggle_pause(self, _: KeyDown.P) -> None:
         self.paused = not self.paused
 
     def next_level(self) -> None:
@@ -516,21 +531,12 @@ class Game(Window):
         self.world = World(ship, num_asteroids=4)
         UI(self.world)
 
-        Key.escape.down.subscribe(self.quit)
-        Key.left.down.subscribe(ship.spin_left)
-        Key.left.up.subscribe(ship.spin_stop)
-        Key.right.down.subscribe(ship.spin_right)
-        Key.right.up.subscribe(ship.spin_stop)
-        Key.up.down.subscribe(ship.thrust)
-        Key.up.up.subscribe(ship.thrust_stop)
-        Key.down.down.subscribe(ship.stop)
-        Key.space.down.subscribe(ship.fire)
-        Key.s.down.subscribe(ship.shield_on)
-        Key.s.up.subscribe(ship.shield_off)
-        Key.p.down.subscribe(self.world.toggle_pause)
-
     def update(self, **_) -> None:
         super().update(world=self.world)
+
+    @event_listener
+    def quit(self, _: Quit | KeyDown.ESCAPE) -> None:
+        self.running = False
 
 
 if __name__ == "__main__":

@@ -1,12 +1,13 @@
 """Publish-Subscribe pattern."""
 from __future__ import annotations
 
+from collections.abc import Callable
 from functools import partial
 from typing import Any
-from typing import Callable
+from typing import Self
 
 
-class message:
+class Message:
     """
     A message that can be subscribed to.
 
@@ -58,7 +59,7 @@ class message:
     def __set_name__(self, owner: Any, name: str) -> None:
         self.name = name
 
-    def __get__(self, obj: Any, obj_type: Any = None) -> message:
+    def __get__(self, obj: Any, obj_type: Any = None) -> Self:
         if obj and obj != self.obj:
             callback = None
             if self.callback:
@@ -71,3 +72,6 @@ class message:
     def subscribe(self, subscriber: Callable) -> None:
         """Subscribe to the message."""
         self.subscribers.append(subscriber)
+
+
+message = Message

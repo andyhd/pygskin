@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import inspect
+from collections.abc import Callable
 from typing import Any
-from typing import Callable
 from typing import ClassVar
 from typing import Protocol
-from typing import Type
 from typing import get_type_hints
 
 
@@ -15,7 +15,7 @@ class Entity:
         self.instances.append(self)
 
     def __getattr__(self, name: str) -> Any:
-        for attr, value in self.__dict__.items():
+        for _, value in self.__dict__.items():
             if value.__class__.__name__ == name:
                 return value
 
@@ -25,13 +25,8 @@ class Entity:
 
         return self.__getattribute__(name)
 
-    def has(self, *components: Type) -> bool:
-        for component in components:
-            try:
-                getattr(self, component.__name__)
-            except AttributeError:
-                return False
-        return True
+    def has(self, *components: type) -> bool:
+        return any(isinstance(attr, components) for _, attr in inspect.getmembers(self))
 
 
 class System(Protocol):
@@ -70,7 +65,7 @@ class Container:
     @property
     def systems(self) -> list[System]:
         if not hasattr(self, "_systems"):
-            setattr(self, "_systems", [])
+            self._systems = []
         return self._systems
 
     def update(self, **kwargs) -> None:

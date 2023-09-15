@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import random
 from collections import deque
-from dataclasses import dataclass, field
-from functools import partial
+from dataclasses import dataclass
+from dataclasses import field
 from pathlib import Path
 
 import pygame
@@ -11,17 +11,18 @@ from pygame.sprite import Sprite
 
 from pygskin import ecs
 from pygskin.assets import Assets
-from pygskin.direction import Direction
-from pygskin.events import Key
-from pygskin.display import Display
 from pygskin.clock import Clock
 from pygskin.clock import on_tick
+from pygskin.direction import Direction
+from pygskin.display import Display
+from pygskin.events import KeyDown
+from pygskin.events import Quit
+from pygskin.events import event_listener
 from pygskin.grid import Grid
 from pygskin.pubsub import message
 from pygskin.spritesheet import Spritesheet
 from pygskin.text import Text
 from pygskin.window import Window
-
 
 assets = Assets(Path(__file__).parent / "assets")
 
@@ -138,11 +139,7 @@ class Snake(deque, ecs.Entity):
         self.reset(cell, direction, length, spritesheet)
 
     def reset(
-        self,
-        cell: Cell,
-        direction: Direction,
-        length: int,
-        spritesheet: Spritesheet
+        self, cell: Cell, direction: Direction, length: int, spritesheet: Spritesheet
     ) -> None:
         self.alive = True
         self.timer = 0
@@ -155,7 +152,7 @@ class Snake(deque, ecs.Entity):
 
         cell = cell - direction.vector * (length - 1)
         self.append(Segment(cell, direction, spritesheet))
-        for i in range(length - 1):
+        for _ in range(length - 1):
             self.grow()
 
     @property
@@ -184,9 +181,15 @@ class Snake(deque, ecs.Entity):
             return self.alive
         return False
 
-    def turn(self, direction: Direction, *_) -> None:
-        if direction.axis != self.head.direction.axis:
-            self.head.turning_to = direction
+    @event_listener
+    def turn(
+        self, event: KeyDown.LEFT | KeyDown.RIGHT | KeyDown.UP | KeyDown.DOWN
+    ) -> None:
+        try:
+            if event.direction.axis != self.head.direction.axis:
+                self.head.turning_to = event.direction
+        except AttributeError:
+            pass
 
     @message
     def die(self, *_):
@@ -194,7 +197,7 @@ class Snake(deque, ecs.Entity):
 
     @property
     def cells(self) -> set[Cell]:
-        return set(segment.cell for segment in self)
+        return {segment.cell for segment in self}
 
     def hit_self(self) -> bool:
         return any(
@@ -216,9 +219,9 @@ class World(Grid):
     @property
     def available_cells(self) -> set[Cell]:
         return (
-            set(Cell(xy) for xy in self)
+            {Cell(xy) for xy in self}
             - self.snake.cells
-            - set(food.cell for food in self.food)
+            - {food.cell for food in self.food}
         )
 
     def place(self, food: Food) -> None:
@@ -282,12 +285,7 @@ class Game(Window):
             background=(0, 40, 0),
         )
 
-        self.systems.extend(
-            [
-                Clock(fps=60),
-                move(),
-            ]
-        )
+        self.systems.append(move())
 
         spritesheet = Spritesheet(assets.snake, Grid(4, 4), SNAKE_SPRITE_MAP)
 
@@ -310,13 +308,7 @@ class Game(Window):
         }
 
         self.pause_label = Text(
-            (
-                "PAUSED\n"
-                "\n"
-                "P   - Pause / Unpause\n"
-                "R   - Restart\n"
-                "Esc - Quit"
-            ),
+            ("PAUSED\n\nP   - Pause / Unpause\nR   - Restart\nEsc - Quit"),
             background=(0, 0, 255, 128),
             padding=[20],
         )
@@ -330,19 +322,11 @@ class Game(Window):
         )
         self.game_over_label.rect.center = Display.rect.center
 
-        # controls
-        Key.escape.down.subscribe(self.quit)
-        Key.left.down.subscribe(partial(snake.turn, Direction.LEFT))
-        Key.right.down.subscribe(partial(snake.turn, Direction.RIGHT))
-        Key.up.down.subscribe(partial(snake.turn, Direction.UP))
-        Key.down.down.subscribe(partial(snake.turn, Direction.DOWN))
-        Key.p.down.subscribe(self.toggle_pause)
-        Key.r.down.subscribe(self.reset)
-
     def update(self):
         super().update(**self.state)
 
-    def toggle_pause(self, *_) -> None:
+    @event_listener
+    def toggle_pause(self, _: KeyDown.P) -> None:
         if self.state["game_over"]:
             self.state["game_over"] = False
             self.game_over_label.kill()
@@ -355,14 +339,20 @@ class Game(Window):
         else:
             self.pause_label.kill()
 
-    def reset(self, *_) -> None:
+    @event_listener
+    def reset(self, _: KeyDown.R) -> None:
         self.score.value = -1
         self.score.increment()
         self.world.snake.reset((0, 0), Direction.RIGHT, 3, self.world.snake.spritesheet)
 
+    @event_listener
+    def quit(self, _: KeyDown.ESCAPE | Quit) -> None:
+        self.running = False
+
     def game_over(self) -> None:
         self.state["game_over"] = True
         self.game_over_label.add(Display.sprites)
+
 
 if __name__ == "__main__":
     Game().run()

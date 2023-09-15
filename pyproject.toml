@@ -1,15 +1,14 @@
-[project]
-name = "pygskin"
-version = "0.0.1"
-dependencies = [
-    "pygame-ce",
-    "ruamel.yaml",
-]
+[tool.black]
+extend-exclude = ""
 
-[tool.isort]
-profile = "black"
-force_single_line = true
-skip_gitignore = true
+[tool.ruff]
+extend-exclude = []
+extend-ignore = ["E203"]
+ignore-init-module-imports = true
+select = ["E", "F", "I", "B", "C4", "SIM", "N", "FLY", "UP"]
 
-[tool.flake8]
-ignore = "E203"
+[tool.ruff.flake8-bugbear]
+extend-immutable-calls = []
+
+[tool.ruff.isort]
+force-single-line = true

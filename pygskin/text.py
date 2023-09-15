@@ -87,7 +87,18 @@ class Text(pygame.sprite.Sprite):
 
     @cached_property
     def rect(self) -> pygame.Rect:
-        return self.image.get_rect()
+        kwargs = """
+            x,y, top, left, bottom, right, topleft, bottomleft, topright,
+            bottomright, midtop, midleft, midbottom, midright, center,
+            centerx, centery, size, width, height, w,h
+        """
+        return self.image.get_rect(
+            **{
+                name.strip(): self.__dict__[name]
+                for name in kwargs.split(",")
+                if name in self.__dict__
+            }
+        )
 
 
 def wrap(

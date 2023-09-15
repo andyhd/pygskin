@@ -9,6 +9,7 @@ from pygskin.clock import Clock
 from pygskin.display import Display
 from pygskin.events import EventSystem
 from pygskin.events import Quit
+from pygskin.events import event_listener
 
 
 class Window(ecs.Entity, ecs.Container):
@@ -16,7 +17,6 @@ class Window(ecs.Entity, ecs.Container):
         super().__init__()
         self.running = False
         self.config = config
-        Quit.subscribe(self.quit)
         self.systems.extend(
             [
                 Display(**config),
@@ -25,7 +25,8 @@ class Window(ecs.Entity, ecs.Container):
             ]
         )
 
-    def quit(self, *args) -> None:
+    @event_listener
+    def quit(self, _: Quit) -> None:
         self.running = False
 
     async def main_loop(self) -> None:

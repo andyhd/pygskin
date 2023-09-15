@@ -1,149 +1,137 @@
 from __future__ import annotations
 
-from typing import Callable
+import inspect
+import sys
+import types
+import typing
+from collections.abc import Callable
+from collections.abc import Iterable
+from typing import Any
+from typing import overload
 
 import pygame
 
-from pygskin.pubsub import message
+from pygskin import ecs
+from pygskin.direction import Direction
+from pygskin.utils import Decorator
 
 
-KEYCODE_MAP = {
-    f'{"_" if name[2:].isdigit() else ""}{name[2:].lower()}': value
+class Event:
+    _type: int = -1
+
+    def __init__(self, event: pygame.event.Event) -> None:
+        self.metadata = set(event.__dict__.items())
+        self.type = event.type
+        self.__dict__.update(self.metadata)
+
+    @classmethod
+    def build(cls, event: pygame.event.Event) -> Event | None:
+        class_name = EVENT_TYPE_MAP.get(event.type)
+        if class_name:
+            event_class = getattr(sys.modules[__name__], class_name)
+            if class_name in ("KeyDown", "KeyUp"):
+                subclass_name = KEY_MAP.get(event.key)
+                if subclass_name:
+                    event_class = getattr(event_class, subclass_name)
+            return event_class(event)
+
+
+KEY_MAP = {
+    value: f'{"_" if name[2:].isdigit() else ""}{name[2:].upper()}'
     for name, value in pygame.__dict__.items()
     if name.startswith("K_") and name not in ["K_LAST"]
 }
 
+EVENT_TYPE_MAP = {}
+for class_name in [
+    "KeyDown",
+    "KeyUp",
+    "MouseButtonDown",
+    "MouseButtonUp",
+    "MouseMotion",
+    "Quit",
+]:
+    event_type = getattr(pygame, class_name.upper())
+    EVENT_TYPE_MAP[event_type] = class_name
+    event_class = type(class_name, (Event,), {"_type": event_type})
+    setattr(sys.modules[__name__], class_name, event_class)
 
-class KeyMeta(type):
-    """Metaclass for Key
-
-    Keeps references to singleton Key instances for each keycode, so that only one
-    pubsub message exists for each key event.
-    """
-
-    def __getattr__(self, name: str) -> Key:
-        """Get Key instance by name"""
-        if name in KEYCODE_MAP:
-            key = Key(KEYCODE_MAP[name])
-            setattr(self, name, key)
-            return key
-
-    def __getitem__(self, keycode: int) -> Key:
-        """Get Key instance by keycode"""
-        for name, value in KEYCODE_MAP.items():
-            if keycode == value:
-                return getattr(self, name)
-        raise KeyError(keycode)
+    if class_name in ("KeyDown", "KeyUp"):
+        for value, subclass_name in KEY_MAP.items():
+            attrs = {"key": value}
+            if subclass_name in ("UP", "DOWN", "LEFT", "RIGHT"):
+                attrs["direction"] = Direction[subclass_name]
+            setattr(
+                event_class,
+                subclass_name,
+                type(f"{class_name}.{subclass_name}", (event_class,), attrs),
+            )
 
 
-class Key(metaclass=KeyMeta):
-    def __init__(self, keycode: int) -> None:
-        self.keycode = keycode
-        self.down = message()
-        self.up = message()
+class EventListener(Decorator):
+    def __init__(self, *args, **kwargs) -> None:
+        self.event_types: set[type] = set()
+        super().__init__(*args, **kwargs)
 
-    @classmethod
-    def handle_event(self, event: pygame.event.Event) -> None:
-        key = Key[event.key]
-        if event.type == pygame.KEYDOWN:
-            key.down(event)
+    def add_event_type(self, event_type: type) -> None:
+        if isinstance(event_type, types.UnionType | typing._UnionGenericAlias):
+            for arg in event_type.__args__:
+                self.add_event_type(arg)
         else:
-            key.up(event)
+            self.event_types.add(event_type)
+
+    def set_function(self, fn: Callable) -> None:
+        super().set_function(fn)
+
+        sig = inspect.signature(fn, eval_str=True)
+        for i, (name, param) in enumerate(sig.parameters.items()):
+            if i == 0 and name == "self":
+                continue
+            self.add_event_type(param.annotation)
+            break
+        else:
+            raise ValueError("Event listener must specify an event as first argument")
+
+    def is_listening_for(self, event: Event) -> bool:
+        for event_type in self.event_types:
+            metadata = set()
+            if isinstance(event_type, typing._AnnotatedAlias):
+                metadata = set(event_type.__metadata__)
+                event_type = event_type.__origin__
+            if isinstance(event, event_type) and metadata.issubset(event.metadata):
+                return True
+
+    @overload
+    def __call__(self, event: Event) -> None:
+        ...
+
+    def __call__(self, *args, **kwargs) -> Any:
+        match args:
+            case (Callable() as fn,) if not self.fn:
+                self.set_function(fn)
+                return self
+
+            case (Event() as event,) if self.is_listening_for(event):
+                self.fn(event)
+
+            case ():
+                self.fn(None)
 
 
-class Mouse:
-    class Button:
-        def __init__(self, button_num: int) -> None:
-            self.num = button_num
-            self.down = message()
-            self.up = message()
+event_listener = EventListener
 
-        @classmethod
-        def handle_event(self, event: pygame.event.Event) -> None:
-            button = Mouse.button[event.button]
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                button.down(event)
-            else:
-                button.up(event)
 
-    motion = message()
-    button = {
-        1: Button(1),
-        2: Button(2),
-        3: Button(3),
-    }
-
+class EventSystem(ecs.System):
     @classmethod
-    def handle_event(self, event: pygame.event.Event) -> None:
-        Mouse.motion(event)
-
-
-class Quit:
-    msg = message()
-
-    @classmethod
-    def handle_event(cls, event: pygame.event.Event) -> None:
-        cls.msg(event)
-
-    @classmethod
-    def subscribe(cls, callback: Callable[[pygame.event.Event], None]) -> None:
-        cls.msg.subscribe(callback)
-
-
-class EventSystem:
-    """
-    >>> Key.space.down.subscribe(lambda ev: print(ev))
-    >>> _ = pygame.init()
-    >>> _ = pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_SPACE))
-    >>> EventSystem().update([])
-    <Event(768-KeyDown {'key': 32})>
-    """
-
-    event_map = {
-        pygame.QUIT: Quit,
-        pygame.KEYDOWN: Key,
-        pygame.KEYUP: Key,
-        pygame.MOUSEBUTTONDOWN: Mouse.Button,
-        pygame.MOUSEBUTTONUP: Mouse.Button,
-        pygame.MOUSEMOTION: Mouse,
-    }
-
-    def update(self, *args, **kwargs) -> None:
-        for event in pygame.event.get():
-            handler = self.event_map.get(event.type)
-            if handler:
-                handler.handle_event(event)
-
-
-class EventGroup(list[message]):
-    """
-    Call a function if any of the listed Events is fired.
-
-    >>> fire = EventGroup([Mouse.button[1].down])
-    >>> fire.subscribe(lambda *_: print("BANG!"))
-    >>> _ = pygame.init()
-    >>> _ = pygame.event.post(pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1))
-    >>> EventSystem().update([])
-    BANG!
-    """
-
-    def __init__(self, events: list[message]) -> None:
-        super().__init__()
+    def update(cls, entities: Iterable[ecs.Entity], **kwargs) -> None:
+        events = list(pygame.event.get())
         for event in events:
-            self.append(event)
-        self.callback: Callable | None = None
+            event = Event.build(event)
+            for entity in entities:
+                cls.update_entity(entity, event=event, **kwargs)
 
-    def subscribe(self, callback: Callable) -> None:
-        self.callback = callback
-
-    def append(self, event: message) -> None:
-        super().append(event)
-        event.subscribe(self.trigger)
-
-    def remove(self, event: message) -> None:
-        super().remove(event)
-        event.subscribers.remove(self.trigger)
-
-    def trigger(self, *args) -> None:
-        if callable(self.callback):
-            self.callback(*args)
+    @classmethod
+    def update_entity(cls, entity: ecs.Entity, **kwargs) -> None:
+        for attr, value in inspect.getmembers(entity):
+            if isinstance(value, EventListener):
+                getattr(entity, attr)(kwargs["event"])

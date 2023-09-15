@@ -1,6 +1,6 @@
-from dataclasses import dataclass, field
-from typing import Callable
-from typing import Iterator
+from collections.abc import Callable
+from collections.abc import Iterator
+from dataclasses import dataclass
 from typing import TypeVar
 
 from pygskin.pubsub import message

@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 import random
+from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Iterator
 
 import pygame
 
 from pygskin.display import Display
-from pygskin.events import Key
-from pygskin.events import Mouse
+from pygskin.events import KeyDown
+from pygskin.events import MouseButtonDown
+from pygskin.events import MouseButtonUp
+from pygskin.events import MouseMotion
+from pygskin.events import Quit
+from pygskin.events import event_listener
 from pygskin.grid import Grid
 from pygskin.text import Text
 from pygskin.window import Window
@@ -79,7 +83,7 @@ class World(pygame.sprite.Sprite):
         self.generation += 1
 
     def randomize(self) -> None:
-        for xy, cell in self.cells.with_keys():
+        for _xy, cell in self.cells.with_keys():
             cell.alive = random.random() < 0.5
 
     def refresh(self) -> None:
@@ -137,40 +141,40 @@ class Game(Window):
         self.pause_label.rect.center = self.world.rect.center
         self.pause_label.add(Display.sprites)
 
-        Key.escape.down.subscribe(self.quit)
-        Key.c.down.subscribe(self.clear)
-        Key.g.down.subscribe(self.gosper_gun)
-        Key.p.down.subscribe(self.toggle_pause)
-        Key.r.down.subscribe(self.randomize)
-        Mouse.button[1].down.subscribe(self.toggle_painting)
-        Mouse.button[1].up.subscribe(self.toggle_painting)
-        Mouse.motion.subscribe(self.paint)
-
     def update(self):
         super().update(**self.state)
         if not self.state["paused"]:
             self.world.next_generation()
 
-    def randomize(self, *args) -> None:
+    @event_listener
+    def quit(self, _: KeyDown.ESCAPE | Quit) -> None:
+        self.running = False
+
+    @event_listener
+    def randomize(self, _: KeyDown.R) -> None:
         self.world.randomize()
         self.world.refresh()
 
-    def clear(self, *args) -> None:
+    @event_listener
+    def clear(self, _: KeyDown.C) -> None:
         self.world.cells = CellGrid(*self.world.grid.size)
         self.world.generation = 0
 
-    def toggle_pause(self, *args) -> None:
+    @event_listener
+    def toggle_pause(self, _: KeyDown.P) -> None:
         self.state["paused"] = not self.state["paused"]
         if self.state["paused"]:
             self.pause_label.add(Display.sprites)
         else:
             self.pause_label.kill()
 
-    def toggle_painting(self, event) -> None:
+    @event_listener
+    def toggle_painting(self, event: MouseButtonDown | MouseButtonUp) -> None:
         if self.state["paused"]:
             self.state["painting"] = not self.state["painting"]
 
-    def paint(self, event) -> None:
+    @event_listener
+    def paint(self, event: MouseMotion) -> None:
         if self.state["painting"]:
             cell_width, cell_height = self.world.grid.cell_size
             x = event.pos[0] // cell_width
@@ -178,7 +182,8 @@ class Game(Window):
             self.world.cells[(x, y)].alive = True
             self.world.refresh()
 
-    def gosper_gun(self, *args) -> None:
+    @event_listener
+    def gosper_gun(self, _: KeyDown.G) -> None:
         cells = (
             "......................................",
             ".........................O............",
