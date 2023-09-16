@@ -17,11 +17,8 @@ from __future__ import annotations
 
 import contextlib
 import random
-from dataclasses import dataclass
 from enum import IntEnum
 from pathlib import Path
-from typing import Protocol
-from typing import runtime_checkable
 
 import pygame
 from pygame.math import Vector2
@@ -31,7 +28,6 @@ from pygskin.animation import Animation
 from pygskin.assets import Assets
 from pygskin.clock import Clock
 from pygskin.clock import Timer
-from pygskin.clock import on_tick
 from pygskin.display import Display
 from pygskin.events import KeyDown
 from pygskin.events import KeyUp
@@ -39,15 +35,10 @@ from pygskin.events import Quit
 from pygskin.events import event_listener
 from pygskin.pubsub import message
 from pygskin.text import Text
+from pygskin.text import DynamicText
 from pygskin.window import Window
 
 assets = Assets(Path(__file__).parent / "assets")
-
-
-class Size(IntEnum):
-    BIG = 1
-    MEDIUM = 2
-    SMALL = 3
 
 
 def translate(v: Vector2) -> Vector2:
@@ -58,42 +49,21 @@ def random_position() -> Vector2:
     return Vector2(random.random(), random.random())
 
 
-@runtime_checkable
-class Drawable(Protocol):
-    visible: bool = True
-
-    def draw(self, surface: pygame.Surface) -> None:
-        ...
-
-
-class Mob(ecs.Entity, Drawable):
+class Mob(ecs.Entity):
     colour: str = "white"
     radius: float = 0.1
 
-    def __init__(
-        self,
-        pos: Vector2 | None = None,
-        velocity: Vector2 | None = None,
-        acceleration: Vector2 | None = None,
-        angle: float = 0,
-        spin: float = 0,
-    ) -> None:
-        ecs.Entity.__init__(self)
+    def __init__(self, **kwargs) -> None:
+        super().__init__()
 
-        self.pos = pos or random_position()
-        self.velocity = velocity or Vector2(0, 0)
-        self.acceleration = acceleration or Vector2(0, 0)
-        self.angle = angle
-        self.spin = spin
+        self.pos = Vector2(kwargs.get("pos", 0.5))
+        self.velocity = Vector2(kwargs.get("velocity", 0))
+        self.acceleration = Vector2(0)
+        self.angle: float = kwargs.get("angle", 0.0)
+        self.spin: float = kwargs.get("spin", 0.0)
 
-        self.center_offset = Vector2(self.radius, self.radius)
-        self.rect = pygame.Rect(
-            translate(self.pos - self.center_offset),
-            translate(self.center_offset * 2),
-        )
-
-    def __hash__(self) -> str:
-        return hash(id(self))
+        offset = Vector2(self.radius)
+        self.rect = pygame.Rect(translate(self.pos - offset), translate(offset * 2))
 
     def draw(self, surface: pygame.Surface) -> None:
         pygame.draw.circle(
@@ -110,6 +80,182 @@ class Mob(ecs.Entity, Drawable):
 
     def collides_with(self, other: Mob) -> bool:
         return self.pos.distance_to(other.pos) < (self.radius + other.radius)
+
+
+class Ship(Mob):
+    radius: float = 0.025
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+
+        self.alive = True
+        self.thruster_on = False
+        self.lives = 3
+        self.respawn_timer = Timer(seconds=3, on_expire=self.respawn)
+        self.shield_timer = Timer(seconds=10)
+        self.invulnerability_timer = Timer(seconds=2)
+
+    @property
+    def acceleration(self) -> float:
+        if self.alive and self.thruster_on:
+            return Vector2(0, 0.0075).rotate(self.angle)
+        return Vector2(0, 0)
+
+    @acceleration.setter
+    def acceleration(self, _) -> None:
+        pass
+
+    def draw(self, surface: pygame.Surface) -> None:
+        if not self.alive:
+            return
+
+        pygame.draw.polygon(
+            surface,
+            self.colour,
+            [
+                translate(Vector2(0, radius).rotate(angle) + self.pos)
+                for radius, angle in [
+                    (self.radius, self.angle),  # nose
+                    (self.radius, self.angle - 130),  # left
+                    (self.radius / 2, self.angle + 180),  # tail
+                    (self.radius, self.angle + 130),  # right
+                ]
+            ],
+            width=2,
+        )
+        if self.shield_on:
+            timer = self.shield_timer
+            shield_percentage = timer.remaining / (timer.seconds * 1000)
+            shield_colour = pygame.Color(255, 255, 255, 64).lerp(
+                pygame.Color(255, 255, 255, 255),
+                shield_percentage,
+            )
+            pygame.draw.circle(
+                surface,
+                shield_colour,
+                translate(self.pos),
+                round(self.radius * Display.rect.width) + random.randrange(3),
+                width=2,
+            )
+
+    @message
+    def kill(self) -> None:
+        assets.bang_big.play()
+        self.thrust_stop()
+        self.spin = 0.0
+        self.velocity = Vector2(0)
+        self.alive = False
+
+    @event_listener
+    def thrust(self, _: KeyDown.UP) -> None:
+        if self.alive:
+            self.thruster_on = True
+            assets.thrust.play(loops=-1, fade_ms=100)
+
+    @event_listener
+    def thrust_stop(self, _: KeyUp.UP | None = None) -> None:
+        if self.alive:
+            self.thruster_on = False
+            assets.thrust.fadeout(200)
+
+    @event_listener
+    def spin_left(self, _: KeyDown.LEFT) -> None:
+        if self.alive:
+            self.spin = -20
+
+    @event_listener
+    def spin_right(self, _: KeyDown.RIGHT) -> None:
+        if self.alive:
+            self.spin = 20
+
+    @event_listener
+    def spin_stop(self, _: KeyUp.LEFT | KeyUp.RIGHT | None = None) -> None:
+        if self.alive:
+            self.spin = 0
+
+    @event_listener
+    def fire(self, _: KeyDown.SPACE) -> None:
+        if self.alive:
+            assets.fire.play()
+            Bullet(
+                ship=self,
+                pos=self.pos,
+                velocity=self.velocity + Vector2(0, 0.15).rotate(self.angle),
+            )
+
+    @event_listener
+    def shield(self, _: KeyDown.S) -> None:
+        timer = self.shield_timer
+        if timer.started:
+            timer.resume()
+        else:
+            timer.start()
+
+    @event_listener
+    def shield_off(self, _: KeyUp.S) -> None:
+        self.shield_timer.pause()
+
+    @property
+    def shield_on(self) -> bool:
+        timer = self.shield_timer
+        return timer.started and not (timer.ended or timer.paused)
+
+    @property
+    def invulnerable(self) -> bool:
+        timer = self.invulnerability_timer
+        return timer.started and not timer.ended
+
+    def respawn(self) -> None:
+        self.alive = True
+        self.pos = Vector2(0.5)
+        self.velocity = Vector2(0)
+        self.shield_timer.reset()
+        self.invulnerability_timer.start()
+
+
+class Bullet(Mob):
+    radius: float = 0.005
+    colour: str = "orange"
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self.lifetime = Timer(seconds=1, on_expire=self.kill, delete=True)
+        self.lifetime.start()
+
+    def kill(self) -> None:
+        self.lifetime.cancel()
+        super().kill()
+
+
+class Explosion(Mob):
+    radius: float = 0.375
+    colour: str = "orange"
+
+    def __init__(self, **kwargs) -> None:
+        self.anim_radius = Animation(
+            {0: 0.0, 200: self.radius},
+        )
+        self.anim_radius.end.subscribe(self.kill)
+        self.anim_radius.start()
+        super().__init__(**kwargs)
+
+    def draw(self, surface: pygame.Surface) -> None:
+        center = translate(self.pos)
+        radius = round(self.anim_radius.current_frame() * Display.rect.width)
+        for i in range(2):
+            pygame.draw.circle(
+                surface,
+                self.colour,
+                center,
+                radius + i * random.randrange(3),
+                width=2,
+            )
+
+
+class Size(IntEnum):
+    BIG = 1
+    MEDIUM = 2
+    SMALL = 3
 
 
 class Asteroid(Mob):
@@ -131,11 +277,15 @@ class Asteroid(Mob):
         self.spin = random.uniform(-10, 10)
 
     def draw(self, surface: pygame.Surface) -> None:
-        points = [
-            translate(Vector2(0, radius).rotate(self.angle + i * 18) + self.pos)
-            for i, radius in enumerate(self.radii)
-        ]
-        pygame.draw.polygon(surface, self.colour, points, width=2)
+        pygame.draw.polygon(
+            surface,
+            self.colour,
+            [
+                translate(Vector2(0, radius).rotate(self.angle + i * 18) + self.pos)
+                for i, radius in enumerate(self.radii)
+            ],
+            width=2,
+        )
 
     @message
     def kill(self) -> None:
@@ -149,238 +299,55 @@ class Asteroid(Mob):
         ]
 
 
-class Bullet(Mob):
-    radius: float = 0.005
-    colour: str = "orange"
-
-    def __init__(self, ship: Ship, is_super: bool = False, **kwargs) -> None:
-        self.ship = ship
-        self.is_super = is_super
-        self.lifetime = Timer(seconds=1, on_expire=self.kill)
-        self.lifetime.start()
-        super().__init__(**kwargs)
-
-    def draw(self, surface: pygame.Surface) -> None:
-        super().draw(surface)
-        if self.is_super:
-            pygame.draw.circle(
-                surface,
-                "white",
-                translate(self.pos),
-                random.randrange(3),
-            )
-
-    def kill(self, *_) -> None:
-        self.lifetime.cancel()
-        super().kill()
-
-
-class Explosion(Mob):
-    radius: float = 0.75
-    colour: str = "orange"
-
-    def __init__(self, **kwargs) -> None:
-        self.anim_radius = Animation(
-            {0: 0.0, 200: self.radius},
-        )
-        self.anim_radius.end.subscribe(self.kill)
-        self.anim_radius.start()
-
-        super().__init__(**kwargs)
-
-    def draw(self, surface: pygame.Surface) -> None:
-        center = translate(self.pos)
-        radius = round(self.anim_radius.current_frame() * Display.rect.width / 2)
-        for i in range(2):
-            pygame.draw.circle(
-                surface,
-                self.colour,
-                center,
-                radius + i * random.randrange(3),
-                width=2,
-            )
-
-
-class Ship(Mob):
-    radius: float = 0.025
-
-    def __init__(self, **kwargs) -> None:
-        self.alive = True
-        self.respawn_timer = Timer(seconds=3, on_expire=self.respawn, delete=False)
-        self.shield_timer = Timer(seconds=10, delete=False)
-        self.thruster_on = False
-        self.invulnerability_timer = Timer(seconds=2, delete=False)
-
-        super().__init__(**kwargs)
-
-    def draw(self, surface: pygame.Surface) -> None:
-        pygame.draw.polygon(
-            surface,
-            "white",
-            [
-                translate(Vector2(0, radius).rotate(angle) + self.pos)
-                for radius, angle in [
-                    (self.radius, self.angle),  # nose
-                    (self.radius, self.angle - 130),  # left
-                    (self.radius / 2, self.angle + 180),  # tail
-                    (self.radius, self.angle + 130),  # right
-                ]
-            ],
-            width=2,
-        )
-        if self.shield_active():
-            timer = self.shield_timer
-            shield_remaining = timer.remaining / (timer.seconds * 1000)
-            shield_color = pygame.Color(255, 255, 255, 64).lerp(
-                pygame.Color(255, 255, 255, 255), shield_remaining
-            )
-            pygame.draw.circle(
-                surface,
-                shield_color,
-                translate(self.pos),
-                round(self.radius * Display.rect.width) + random.randrange(3),
-                width=2,
-            )
-
-    @message
-    def kill(self) -> None:
-        assets.bang_big.play()
-        self.thrust_stop()
-        self.spin_stop()
-        self.stop()
-        self.alive = False
-        self.visible = False
-
-    @event_listener
-    def spin_left(self, _: KeyDown.LEFT) -> None:
-        if self.alive:
-            self.spin = -20
-
-    @event_listener
-    def spin_right(self, _: KeyDown.RIGHT) -> None:
-        if self.alive:
-            self.spin = 20
-
-    @event_listener
-    def spin_stop(self, _: KeyUp.LEFT | KeyUp.RIGHT | None = None) -> None:
-        if self.alive:
-            self.spin = 0
-
-    @event_listener
-    def thrust(self, _: KeyDown.UP) -> None:
-        if self.alive:
-            self.thruster_on = True
-            assets.thrust.play(loops=-1, fade_ms=100)
-
-    @event_listener
-    def thrust_stop(self, _: KeyUp.UP | None = None) -> None:
-        if self.alive:
-            self.thruster_on = False
-            assets.thrust.fadeout(200)
-
-    @property
-    def acceleration(self) -> float:
-        if self.alive and self.thruster_on:
-            return Vector2(0, 0.0075).rotate(self.angle)
-        return Vector2(0, 0)
-
-    @acceleration.setter
-    def acceleration(self, _) -> None:
-        pass
-
-    @event_listener
-    def stop(self, _: KeyDown.DOWN | None = None) -> None:
-        if self.alive:
-            self.velocity = Vector2(0, 0)
-
-    @event_listener
-    def fire(self, _: KeyDown.SPACE) -> None:
-        if self.alive:
-            assets.fire.play()
-            Bullet(
-                ship=self,
-                pos=self.pos,
-                velocity=self.velocity + Vector2(0, 0.15).rotate(self.angle),
-            )
-
-    @event_listener
-    def shield_on(self, _: KeyDown.S) -> None:
-        timer = self.shield_timer
-        if timer.started:
-            timer.resume()
-        else:
-            timer.start()
-
-    @event_listener
-    def shield_off(self, _: KeyUp.S) -> None:
-        self.shield_timer.pause()
-
-    def shield_active(self) -> bool:
-        timer = self.shield_timer
-        return timer.started and not timer.ended and not timer.paused
-
-    @property
-    def invulnerable(self) -> bool:
-        timer = self.invulnerability_timer
-        return timer.started and not timer.ended
-
-    def respawn(self) -> None:
-        self.alive = True
-        self.pos = Vector2(0.5, 0.5)
-        self.velocity = Vector2(0, 0)
-        self.acceleration = Vector2(0, 0)
-        self.visible = True
-        self.shield_timer.reset()
-        self.invulnerability_timer.start()
-
-
-@dataclass
 class World(pygame.sprite.Sprite):
-    ship: Ship
-    level: int = 0
-    num_asteroids: int = 0
-    score: int = 0
-    max_level: int = 0
-    high_score: int = 0
-    lives: int = 3
-    paused: bool = False
-    game_over: bool = False
+    def __init__(self) -> None:
+        super().__init__(Display.sprites)
+        self.paused = False
+        self.score = 0
+        self.level = 0
+        self.asteroids = []
 
-    def __post_init__(self) -> None:
-        pygame.sprite.Sprite.__init__(self, Display.sprites)
-
-        self.heartbeat = HeartBeat(self)
-
-        self.ship.kill.subscribe(self.remove_ship)
-
+    def load(self) -> None:
         self.surface = pygame.Surface(Display.rect.size).convert_alpha()
         self.rect = self.surface.get_rect()
 
-        self.next_level_timer = Timer(seconds=3, delete=False)
-        self.next_level_timer.end.subscribe(self.next_level)
+        # self.heartbeat = HeartBeat(self)
+
+        self.ship = Ship(pos=Vector2(0.5))
+        self.ship.kill.subscribe(self.remove_ship)
+
+        kw = {"color": "green", "padding": [10]}
+        self.game_over_label = Text("GAME OVER", center=Display.rect.center, **kw)
+        self.pause_label = Text("PAUSED", center=Display.rect.center, **kw)
+        self.ui = pygame.sprite.Group(
+            DynamicText(lambda: f"Level {self.level}", **kw),
+            DynamicText(
+                lambda: f"Lives {self.ship.lives}", bottom=Display.rect.bottom, **kw
+            ),
+            DynamicText(
+                lambda: f"Score {self.score}", bottomright=Display.rect.size, **kw
+            ),
+        )
+
+        self.next_level_timer = Timer(seconds=3, on_expire=self.next_level)
+        self.heartbeat_timer = Timer(seconds=1, on_expire=self.heartbeat)
 
         self.start_level()
-
-    def start_level(self) -> None:
-        self.asteroids = []
-        for _ in range(self.num_asteroids):
-            self.add_asteroid(Asteroid())
-
-        self.ship.invulnerability_timer.start()
 
     @property
     def image(self) -> pygame.Surface:
         self.surface.blit(assets.background.data, (0, 0))
         for entity in ecs.Entity.instances:
-            if isinstance(entity, Drawable) and entity.visible:
+            if isinstance(entity, Mob):
                 entity.draw(self.surface)
+        self.ui.draw(self.surface)
         return self.surface
 
-    def add_score(self, value: int) -> None:
-        self.score += value
-
-    def set_level(self, level: int) -> None:
-        self.level = level
+    def start_level(self) -> None:
+        self.asteroids = []
+        for _ in range(self.level + 3):
+            self.add_asteroid(Asteroid())
+        self.ship.invulnerability_timer.start()
 
     def add_asteroid(self, asteroid: Asteroid) -> None:
         self.asteroids.append(asteroid)
@@ -388,10 +355,10 @@ class World(pygame.sprite.Sprite):
 
     def remove_asteroid(self, asteroid: Asteroid) -> None:
         self.asteroids.remove(asteroid)
-        self.add_score(asteroid.score)
+        self.score += asteroid.score
 
-        if self.score % 10000 <= asteroid.score and self.lives < 10:
-            self.lives += 1
+        if self.score % 10000 <= asteroid.score and self.ship.lives < 10:
+            self.ship.lives += 1
 
         Explosion(pos=asteroid.pos)
         for fragment in asteroid.fragment():
@@ -401,11 +368,12 @@ class World(pygame.sprite.Sprite):
             self.next_level_timer.start()
 
     def remove_ship(self):
-        self.lives -= 1
+        self.ship.lives -= 1
         Explosion(pos=self.ship.pos)
 
-        if self.lives < 1:
+        if self.ship.lives < 1:
             self.game_over = True
+            self.ui.add(self.game_over_label)
 
         else:
             self.ship.respawn_timer.start()
@@ -416,39 +384,23 @@ class World(pygame.sprite.Sprite):
     @event_listener
     def toggle_pause(self, _: KeyDown.P) -> None:
         self.paused = not self.paused
+        if self.paused:
+            self.ui.add(self.pause_label)
+        else:
+            self.ui.remove(self.pause_label)
 
     def next_level(self) -> None:
-        self.set_level(self.level + 1)
-        self.num_asteroids += 1
+        self.level += 1
         self.start_level()
 
-
-class UI(ecs.Entity, Drawable):
-    def __init__(self, world: World) -> None:
-        super().__init__()
-        self.world = world
-
-    def draw(self, surface: pygame.Surface) -> None:
-        level = Text(f"Level {self.world.level}", color="green", padding=[10])
-        surface.blit(level.image, level.rect)
-
-        lives = Text(f"Lives {self.world.lives}", color="green", padding=[10])
-        lives.rect.bottom = Display.rect.bottom
-        surface.blit(lives.image, lives.rect)
-
-        score = Text(f"Score {self.world.score}", color="green", padding=[10])
-        score.rect.bottomright = Display.rect.size
-        surface.blit(score.image, score.rect)
-
-        if self.world.game_over:
-            gameover = Text("GAME OVER", color="green")
-            gameover.rect.center = Display.rect.center
-            surface.blit(gameover.image, gameover.rect)
-
-        elif self.world.paused:
-            paused = Text("PAUSED", color="green")
-            paused.rect.center = Display.rect.center
-            surface.blit(paused.image, paused.rect)
+    def heartbeat(self) -> None:
+        assets.beat1.play()
+        timer = self.heartbeat_timer
+        start = 60 / 180
+        end = 60 / 80
+        quotient = min(1.0, self.score / 1000000)
+        timer.seconds = start + quotient * (end - start)
+        timer.start()
 
 
 @ecs.system
@@ -482,7 +434,7 @@ def collisions(ship: Ship, world: World) -> None:
 
     for asteroid in world.asteroids:
         if ship.collides_with(asteroid):
-            if ship.shield_active():
+            if ship.shield_on:
                 normal = asteroid.pos - ship.pos
                 asteroid.velocity = asteroid.velocity.reflect(normal)
                 asteroid.pos += asteroid.velocity
@@ -490,26 +442,26 @@ def collisions(ship: Ship, world: World) -> None:
                 ship.kill()
 
 
-class HeartBeat(ecs.Entity):
-    def __init__(self, world: World) -> None:
-        super().__init__()
-        self.world = world
-        self._delay = 750
-        assets.beat1.set_volume(0.3)
+# class HeartBeat(ecs.Entity):
+#     def __init__(self, world: World) -> None:
+#         super().__init__()
+#         self.world = world
+#         self._delay = 750
+#         assets.beat1.set_volume(0.3)
 
-    @property
-    def bpm(self) -> float:
-        # increases from 80bpm to 180bpm with score
-        return 100 * min(1.0, (1 + self.world.score) / 1000000) + 80
+#     @property
+#     def bpm(self) -> float:
+#         # increases from 80bpm to 180bpm with score
+#         return 100 * min(1.0, (1 + self.world.score) / 1000000) + 80
 
-    @on_tick
-    def beat(self, dt: int, **_) -> None:
-        if self.world.paused:
-            return
-        self._delay -= dt
-        if self._delay <= 0.0:
-            assets.beat1.play()
-            self._delay = 60000 / self.bpm
+#     @on_tick
+#     def beat(self, dt: int, **_) -> None:
+#         if self.world.paused:
+#             return
+#         self._delay -= dt
+#         if self._delay <= 0.0:
+#             assets.beat1.play()
+#             self._delay = 60000 / self.bpm
 
 
 class Game(Window):
@@ -527,9 +479,8 @@ class Game(Window):
             ]
         )
 
-        ship = Ship(pos=Vector2(0.5, 0.5))
-        self.world = World(ship, num_asteroids=4)
-        UI(self.world)
+        self.world = World()
+        self.world.load()
 
     def update(self, **_) -> None:
         super().update(world=self.world)

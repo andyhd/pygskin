@@ -46,7 +46,7 @@ class Clock(ecs.System):
 class Timer(ecs.Entity):
     seconds: float = 0.0
     on_expire: Callable | None = None
-    delete: bool = True
+    delete: bool = False
 
     def __post_init__(self) -> None:
         ecs.Entity.__init__(self)

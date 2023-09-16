@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+from collections.abc import Iterable
 from enum import Enum
 from functools import cached_property
-from typing import Callable, Iterable
 
 import pygame
+
+from pygskin import ecs
+from pygskin.clock import on_tick
 
 
 class Align(Enum):
@@ -81,7 +85,7 @@ class Text(pygame.sprite.Sprite):
         # blit onto background colour
         image = pygame.Surface(size).convert_alpha()
         image.fill(self.background or (0, 0, 0, 0))
-        image.blits(zip(images, rects))
+        image.blits(zip(images, rects, strict=True))
 
         return image
 
@@ -92,13 +96,13 @@ class Text(pygame.sprite.Sprite):
             bottomright, midtop, midleft, midbottom, midright, center,
             centerx, centery, size, width, height, w,h
         """
-        return self.image.get_rect(
-            **{
-                name.strip(): self.__dict__[name]
-                for name in kwargs.split(",")
-                if name in self.__dict__
-            }
-        )
+        position_kwargs = {}
+        for name in kwargs.split(","):
+            name = name.strip()
+            if name in self.__dict__:
+                position_kwargs[name] = self.__dict__[name]
+
+        return self.image.get_rect(**position_kwargs)
 
 
 def wrap(
@@ -175,3 +179,18 @@ def pad(
         height += pad_top + pad_bottom
 
     return (width, height), (pad_left, pad_top)
+
+
+class DynamicText(ecs.Entity, Text):
+    def __init__(self, fn: Callable, **config) -> None:
+        ecs.Entity.__init__(self)
+        Text.__init__(self, fn(), **config)
+        self.fn = fn
+
+    @on_tick
+    def update(self, *_, **__) -> None:
+        text = self.fn()
+        if text != self.text:
+            self.text = text
+            del self.image
+            del self.rect
