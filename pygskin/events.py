@@ -101,21 +101,13 @@ class EventListener(Decorator):
             if isinstance(event, event_type) and metadata.issubset(event.metadata):
                 return True
 
-    @overload
-    def __call__(self, event: Event) -> None:
-        ...
-
-    def __call__(self, *args, **kwargs) -> Any:
+    def call_function(self, *args, **kwargs) -> Any:
         match args:
-            case (Callable() as fn,) if not self.fn:
-                self.set_function(fn)
-                return self
-
             case (Event() as event,) if self.is_listening_for(event):
-                self.fn(event)
+                super().call_function(event)
 
             case ():
-                self.fn(None)
+                super().call_function(None)
 
 
 event_listener = EventListener

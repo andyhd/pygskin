@@ -2,12 +2,12 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from functools import partial
 from typing import Any
-from typing import Self
+
+from pygskin.utils import Decorator
 
 
-class Message:
+class Message(Decorator):
     """
     A message that can be subscribed to.
 
@@ -41,33 +41,17 @@ class Message:
     """
 
     def __init__(self, callback: Callable | None = None, obj: Any = None) -> None:
-        self.callback = callback
-        self.obj = obj
+        super().__init__(callback, obj=obj)
         self.subscribers: list[Callable] = []
-        self.name: str | None = None
-        self.stopProcessing = False
 
-    def __call__(self, *args, **kwargs) -> None:
+    def call_function(self, *args, **kwargs) -> Any:
         """Publish the message."""
+        cancelled = False
         for subscriber in self.subscribers:
-            if not self.stopProcessing:
-                subscriber(*args, **kwargs)
-        if self.callback and not self.stopProcessing:
-            self.callback(*args, **kwargs)
-        self.stopProcessing = False
-
-    def __set_name__(self, owner: Any, name: str) -> None:
-        self.name = name
-
-    def __get__(self, obj: Any, obj_type: Any = None) -> Self:
-        if obj and obj != self.obj:
-            callback = None
-            if self.callback:
-                callback = partial(self.callback, obj)
-            msg = type(self)(callback, obj=obj)
-            setattr(obj, self.name, msg)
-            return msg
-        return self
+            if not cancelled:
+                cancelled = bool(subscriber(*args, **kwargs))
+        if self.fn and not cancelled:
+            self.fn(*args, **kwargs)
 
     def subscribe(self, subscriber: Callable) -> None:
         """Subscribe to the message."""

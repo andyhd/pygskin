@@ -60,6 +60,9 @@ class Decorator:
             self.set_function(args[0])
             return self
 
+        return self.call_function(*args, **kwargs)
+
+    def call_function(self, *args, **kwargs) -> Any:
         return self.fn(*args, **kwargs)
 
     def __get__(self, obj: Any, obj_type: Any = None) -> Self:

@@ -4,18 +4,15 @@ Asteroids
 TODO:
     - title screen
     - high score table
-    - level progression: more asteroids after clearing
-    - large ufo: random firing and simple path across screen, 200pts
     - small ufo: aiming gets better as score increases, 1000pts, appears after 10,000pts
-    - extra life per 10,000pts
     - homing fragments: big asteroid/hive splits into multiple homing ships
-    - shield absorbs ufo bullets, bounces asteroids
-    - shield brightness timer visualisation
+    - bug: unpausing activates shield
 """
 
 from __future__ import annotations
 
 import contextlib
+import math
 import random
 from enum import IntEnum
 from pathlib import Path
@@ -34,8 +31,8 @@ from pygskin.events import KeyUp
 from pygskin.events import Quit
 from pygskin.events import event_listener
 from pygskin.pubsub import message
-from pygskin.text import Text
 from pygskin.text import DynamicText
+from pygskin.text import Text
 from pygskin.window import Window
 
 assets = Assets(Path(__file__).parent / "assets")
@@ -89,6 +86,7 @@ class Ship(Mob):
         super().__init__(**kwargs)
 
         self.alive = True
+        self.paused = False
         self.thruster_on = False
         self.lives = 3
         self.respawn_timer = Timer(seconds=3, on_expire=self.respawn)
@@ -130,13 +128,19 @@ class Ship(Mob):
                 pygame.Color(255, 255, 255, 255),
                 shield_percentage,
             )
-            pygame.draw.circle(
-                surface,
-                shield_colour,
-                translate(self.pos),
-                round(self.radius * Display.rect.width) + random.randrange(3),
-                width=2,
-            )
+            if not self.paused:
+                pygame.draw.circle(
+                    surface,
+                    shield_colour,
+                    translate(self.pos),
+                    round(self.radius * Display.rect.width) + random.randrange(3),
+                    width=2,
+                )
+
+    def add_life(self) -> None:
+        if self.lives < 10:
+            self.lives += 1
+            assets.life.play()
 
     @message
     def kill(self) -> None:
@@ -148,7 +152,7 @@ class Ship(Mob):
 
     @event_listener
     def thrust(self, _: KeyDown.UP) -> None:
-        if self.alive:
+        if self.alive and not self.paused:
             self.thruster_on = True
             assets.thrust.play(loops=-1, fade_ms=100)
 
@@ -175,7 +179,7 @@ class Ship(Mob):
 
     @event_listener
     def fire(self, _: KeyDown.SPACE) -> None:
-        if self.alive:
+        if self.alive and not self.paused:
             assets.fire.play()
             Bullet(
                 ship=self,
@@ -185,15 +189,17 @@ class Ship(Mob):
 
     @event_listener
     def shield(self, _: KeyDown.S) -> None:
-        timer = self.shield_timer
-        if timer.started:
-            timer.resume()
-        else:
-            timer.start()
+        if self.alive and not self.paused:
+            timer = self.shield_timer
+            if timer.started:
+                timer.resume()
+            else:
+                timer.start()
 
     @event_listener
     def shield_off(self, _: KeyUp.S) -> None:
-        self.shield_timer.pause()
+        if self.alive:
+            self.shield_timer.pause()
 
     @property
     def shield_on(self) -> bool:
@@ -212,12 +218,25 @@ class Ship(Mob):
         self.shield_timer.reset()
         self.invulnerability_timer.start()
 
+    def toggle_pause(self) -> None:
+        self.paused = not self.paused
+        if self.paused:
+            self.respawn_timer.pause()
+            self.shield_timer.pause()
+            self.invulnerability_timer.pause()
+        else:
+            self.respawn_timer.resume()
+            self.invulnerability_timer.resume()
+
 
 class Bullet(Mob):
     radius: float = 0.005
     colour: str = "orange"
 
     def __init__(self, **kwargs) -> None:
+        self.from_ship = bool(kwargs.pop("ship", False))
+        if not self.from_ship:
+            self.colour = "greenyellow"
         super().__init__(**kwargs)
         self.lifetime = Timer(seconds=1, on_expire=self.kill, delete=True)
         self.lifetime.start()
@@ -299,19 +318,117 @@ class Asteroid(Mob):
         ]
 
 
-class World(pygame.sprite.Sprite):
+class Saucer(Mob):
+    def __init__(self, size: Size = Size.BIG, **kwargs) -> None:
+        self.size = size
+        self.radius, speed, self.score = {
+            Size.BIG: (0.05, 0.015, 200),
+            Size.SMALL: (0.025, 0.01, 1000),
+        }[self.size]
+
+        self.ship = kwargs.pop("ship")
+
+        super().__init__(**kwargs)
+
+        self.starting_velocity = Vector2((speed if self.pos.x >= 0 else -speed), 0)
+
+        self.firing_timer = Timer(seconds=3, on_expire=self.fire)
+        self.firing_timer.start()
+
+    @property
+    def velocity(self) -> Vector2:
+        return Vector2(
+            self.starting_velocity.x,
+            math.sin(math.radians(self.pos.x * 360 * 3)) * 0.015,
+        )
+
+    @velocity.setter
+    def velocity(self, _) -> None:
+        pass
+
+    def draw(self, surface: pygame.Surface) -> None:
+        for shape in [
+            [
+                (self.radius, 90),
+                (self.radius * 0.5, 45),
+                (self.radius * 0.5, -45),
+                (self.radius, -90),
+            ],
+            [
+                (self.radius, 90),
+                (self.radius * 0.5, 135),
+                (self.radius * 0.5, -135),
+                (self.radius, -90),
+            ],
+            [
+                (self.radius * 0.5, 135),
+                (self.radius * 0.75, 160),
+                (self.radius * 0.75, -160),
+                (self.radius * 0.5, -135),
+            ],
+        ]:
+            pygame.draw.polygon(
+                surface,
+                self.colour,
+                [
+                    translate(Vector2(0, radius).rotate(angle) + self.pos)
+                    for radius, angle in shape
+                ],
+                width=2,
+            )
+
+    @message
+    def kill(self) -> None:
+        self.firing_timer.cancel()
+        assets[f"bang_{self.size.name.lower()}"].play()
+        super().kill()
+
+    def fire(self) -> None:
+        assets.saucer_fire.play()
+        if self.size == Size.BIG:
+            velocity = self.velocity + Vector2(0, 0.15).rotate(random.random() * 360)
+        else:
+            velocity = ((self.ship.pos - self.pos).normalize() * 0.15).rotate(
+                random.uniform(-10, 10)
+            )
+        Bullet(
+            pos=self.pos,
+            velocity=velocity,
+        )
+
+        self.firing_timer.seconds = random.uniform(1, 2)
+        self.firing_timer.start()
+
+        return True
+
+    def toggle_pause(self) -> None:
+        self.paused = not self.paused
+        if self.paused:
+            self.firing_timer.pause()
+        else:
+            self.firing_timer.resume()
+
+
+class Drone(Mob):
+    @property
+    def velocity(self) -> Vector2:
+        return (self.ship.pos - self.pos).normalize() * 0.02
+
+
+class World(ecs.Entity, pygame.sprite.Sprite):
     def __init__(self) -> None:
-        super().__init__(Display.sprites)
-        self.paused = False
-        self.score = 0
-        self.level = 0
-        self.asteroids = []
+        ecs.Entity.__init__(self)
+        pygame.sprite.Sprite.__init__(self, Display.sprites)
 
     def load(self) -> None:
         self.surface = pygame.Surface(Display.rect.size).convert_alpha()
         self.rect = self.surface.get_rect()
 
-        # self.heartbeat = HeartBeat(self)
+        self.paused = False
+        self.score = 0
+        self.level = 0
+        self.asteroids = []
+        self.saucer = None
 
         self.ship = Ship(pos=Vector2(0.5))
         self.ship.kill.subscribe(self.remove_ship)
@@ -330,7 +447,12 @@ class World(pygame.sprite.Sprite):
         )
 
         self.next_level_timer = Timer(seconds=3, on_expire=self.next_level)
+
         self.heartbeat_timer = Timer(seconds=1, on_expire=self.heartbeat)
+        self.heartbeat_timer.start()
+
+        self.saucer_timer = Timer(seconds=120, on_expire=self.add_saucer)
+        self.saucer_timer.start()
 
         self.start_level()
 
@@ -346,8 +468,33 @@ class World(pygame.sprite.Sprite):
     def start_level(self) -> None:
         self.asteroids = []
         for _ in range(self.level + 3):
-            self.add_asteroid(Asteroid())
+            self.add_asteroid(
+                Asteroid(
+                    pos=Vector2(
+                        0, random.uniform(0.3, 0.7) * Display.rect.width
+                    ).rotate(random.random() * 360)
+                    + self.ship.pos
+                )
+            )
         self.ship.invulnerability_timer.start()
+
+    def add_saucer(self) -> None:
+        if not self.saucer:
+            size = Size.SMALL if random.random() * self.level > 1 else Size.BIG
+            start = Vector2(random.choice((0, 1)), random.uniform(0.1, 0.9))
+            self.saucer = Saucer(size=size, pos=start, ship=self.ship)
+            assets[f"saucer_{size.name.lower()}"].play(loops=-1, fade_ms=100)
+            self.saucer.kill.subscribe(lambda: self.remove_saucer())
+
+    def remove_saucer(self) -> None:
+        saucer = self.saucer
+        if saucer:
+            self.saucer = None
+            assets[f"saucer_{saucer.size.name.lower()}"].fadeout(200)
+
+            Explosion(pos=saucer.pos)
+
+            self.saucer_timer.start()
 
     def add_asteroid(self, asteroid: Asteroid) -> None:
         self.asteroids.append(asteroid)
@@ -355,10 +502,6 @@ class World(pygame.sprite.Sprite):
 
     def remove_asteroid(self, asteroid: Asteroid) -> None:
         self.asteroids.remove(asteroid)
-        self.score += asteroid.score
-
-        if self.score % 10000 <= asteroid.score and self.ship.lives < 10:
-            self.ship.lives += 1
 
         Explosion(pos=asteroid.pos)
         for fragment in asteroid.fragment():
@@ -366,6 +509,11 @@ class World(pygame.sprite.Sprite):
 
         if len(self.asteroids) == 0:
             self.next_level_timer.start()
+
+    def add_score(self, score: int) -> None:
+        self.score += score
+        if self.score >= 10000 and self.score % 10000 <= score:
+            self.ship.add_life()
 
     def remove_ship(self):
         self.ship.lives -= 1
@@ -386,21 +534,31 @@ class World(pygame.sprite.Sprite):
         self.paused = not self.paused
         if self.paused:
             self.ui.add(self.pause_label)
+            for entity in ecs.Entity.instances:
+                if isinstance(entity, Timer):
+                    entity.pause()
         else:
             self.ui.remove(self.pause_label)
+            for entity in ecs.Entity.instances:
+                if isinstance(entity, Timer):
+                    entity.resume()
+        self.ship.toggle_pause()
+        if self.saucer:
+            self.saucer.toggle_pause()
 
     def next_level(self) -> None:
         self.level += 1
         self.start_level()
 
-    def heartbeat(self) -> None:
+    def heartbeat(self, **kwargs) -> bool:
         assets.beat1.play()
         timer = self.heartbeat_timer
-        start = 60 / 180
-        end = 60 / 80
+        start = 60 / 60
+        end = 60 / 240
         quotient = min(1.0, self.score / 1000000)
         timer.seconds = start + quotient * (end - start)
         timer.start()
+        return True
 
 
 @ecs.system
@@ -423,8 +581,27 @@ def bullets(bullet: Bullet, world: World) -> None:
 
     for asteroid in world.asteroids:
         if bullet.collides_with(asteroid):
+            if bullet.from_ship:
+                world.add_score(asteroid.score)
             asteroid.kill()
             bullet.kill()
+
+    saucer = world.saucer
+    if saucer and bullet.collides_with(saucer) and bullet.from_ship:
+        world.add_score(saucer.score)
+        saucer.kill()
+        bullet.kill()
+
+    ship = world.ship
+    if (
+        ship.alive
+        and not ship.invulnerable
+        and not bullet.from_ship
+        and bullet.collides_with(ship)
+    ):
+        bullet.kill()
+        if not ship.shield_on:
+            ship.kill()
 
 
 @ecs.system
@@ -441,27 +618,12 @@ def collisions(ship: Ship, world: World) -> None:
             elif not ship.invulnerable:
                 ship.kill()
 
-
-# class HeartBeat(ecs.Entity):
-#     def __init__(self, world: World) -> None:
-#         super().__init__()
-#         self.world = world
-#         self._delay = 750
-#         assets.beat1.set_volume(0.3)
-
-#     @property
-#     def bpm(self) -> float:
-#         # increases from 80bpm to 180bpm with score
-#         return 100 * min(1.0, (1 + self.world.score) / 1000000) + 80
-
-#     @on_tick
-#     def beat(self, dt: int, **_) -> None:
-#         if self.world.paused:
-#             return
-#         self._delay -= dt
-#         if self._delay <= 0.0:
-#             assets.beat1.play()
-#             self._delay = 60000 / self.bpm
+    saucer = world.saucer
+    if saucer and ship.collides_with(saucer):
+        if ship.shield_on:
+            saucer.kill()
+        else:
+            ship.kill()
 
 
 class Game(Window):
