@@ -40,6 +40,8 @@ class Message(Decorator):
     decorated: quux
     """
 
+    CANCEL = object()
+
     def __init__(self, callback: Callable | None = None, obj: Any = None) -> None:
         super().__init__(callback, obj=obj)
         self.subscribers: list[Callable] = []
@@ -49,7 +51,7 @@ class Message(Decorator):
         cancelled = False
         for subscriber in self.subscribers:
             if not cancelled:
-                cancelled = bool(subscriber(*args, **kwargs))
+                cancelled = subscriber(*args, **kwargs) == Message.CANCEL
         if self.fn and not cancelled:
             self.fn(*args, **kwargs)
 

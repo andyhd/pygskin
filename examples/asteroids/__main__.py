@@ -383,7 +383,7 @@ class Saucer(Mob):
         assets[f"bang_{self.size.name.lower()}"].play()
         super().kill()
 
-    def fire(self) -> None:
+    def fire(self) -> object:
         assets.saucer_fire.play()
         if self.size == Size.BIG:
             velocity = self.velocity + Vector2(0, 0.15).rotate(random.random() * 360)
@@ -399,7 +399,7 @@ class Saucer(Mob):
         self.firing_timer.seconds = random.uniform(1, 2)
         self.firing_timer.start()
 
-        return True
+        return message.CANCEL
 
     def toggle_pause(self) -> None:
         self.paused = not self.paused
@@ -451,7 +451,7 @@ class World(ecs.Entity, pygame.sprite.Sprite):
         self.heartbeat_timer = Timer(seconds=1, on_expire=self.heartbeat)
         self.heartbeat_timer.start()
 
-        self.saucer_timer = Timer(seconds=120, on_expire=self.add_saucer)
+        self.saucer_timer = Timer(seconds=60, on_expire=self.add_saucer)
         self.saucer_timer.start()
 
         self.start_level()
@@ -550,7 +550,7 @@ class World(ecs.Entity, pygame.sprite.Sprite):
         self.level += 1
         self.start_level()
 
-    def heartbeat(self, **kwargs) -> bool:
+    def heartbeat(self, **kwargs) -> object:
         assets.beat1.play()
         timer = self.heartbeat_timer
         start = 60 / 60
@@ -558,7 +558,7 @@ class World(ecs.Entity, pygame.sprite.Sprite):
         quotient = min(1.0, self.score / 1000000)
         timer.seconds = start + quotient * (end - start)
         timer.start()
-        return True
+        return message.CANCEL
 
 
 @ecs.system
