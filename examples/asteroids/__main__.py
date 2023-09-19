@@ -330,7 +330,7 @@ class Saucer(Mob):
 
         super().__init__(**kwargs)
 
-        self.starting_velocity = Vector2((speed if self.pos.x >= 0 else -speed), 0)
+        self.starting_velocity = Vector2((speed if self.pos.x <= 0 else -speed), 0)
 
         self.firing_timer = Timer(seconds=3, on_expire=self.fire)
         self.firing_timer.start()
