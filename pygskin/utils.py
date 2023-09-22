@@ -1,4 +1,5 @@
 import functools
+import math
 import re
 from collections.abc import Callable
 from collections.abc import Iterable
@@ -7,6 +8,7 @@ from typing import Self
 from typing import overload
 
 import pygame
+from pygame.math import Vector2
 
 WORD_START = re.compile(r"(?<!^)(?=[A-Z])")
 
@@ -25,6 +27,19 @@ def rotate(
     rotated_offset = pygame.math.Vector2(offset).rotate(-angle)
     rect = rotated_surface.get_rect(center=center + rotated_offset)
     return rotated_surface, rect
+
+
+def angle_between(v1: Vector2, v2: Vector2) -> float:
+    """
+    Calculate the angle from v1 to v2
+    0 degrees is down and angle increases anti-clockwise, due to pygame's
+    inverted y coordinate system.
+
+    >>> points = [(1, 5), (4, 5), (4, 2), (4, -1), (1, -1), (-2, -1), (-2, 2), (-2, 5)]
+    >>> [angle_between(Vector2(1, 2), Vector2(b)) for b in points]
+    [0.0, 45.0, 90.0, 135.0, 180.0, 225.0, 270.0, 315.0]
+    """
+    return math.degrees(math.atan2((v2.x - v1.x), (v2.y - v1.y))) % 360
 
 
 class Decorator:

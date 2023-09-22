@@ -33,6 +33,7 @@ from pygskin.events import event_listener
 from pygskin.pubsub import message
 from pygskin.text import DynamicText
 from pygskin.text import Text
+from pygskin.utils import angle_between
 from pygskin.window import Window
 
 assets = Assets(Path(__file__).parent / "assets")
@@ -80,7 +81,7 @@ class Mob(ecs.Entity):
 
 
 class Ship(Mob):
-    radius: float = 0.025
+    radius: float = 0.02
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
@@ -96,7 +97,7 @@ class Ship(Mob):
     @property
     def acceleration(self) -> float:
         if self.alive and self.thruster_on:
-            return Vector2(0, 0.0075).rotate(self.angle)
+            return Vector2(0, 0.005).rotate(self.angle)
         return Vector2(0, 0)
 
     @acceleration.setter
@@ -114,9 +115,23 @@ class Ship(Mob):
                 translate(Vector2(0, radius).rotate(angle) + self.pos)
                 for radius, angle in [
                     (self.radius, self.angle),  # nose
-                    (self.radius, self.angle - 130),  # left
-                    (self.radius / 2, self.angle + 180),  # tail
-                    (self.radius, self.angle + 130),  # right
+                    (self.radius, self.angle - 150),  # left
+                    (self.radius, self.angle + 150),  # right
+                ]
+            ],
+            width=2,
+        )
+        pygame.draw.polygon(
+            surface,
+            self.colour,
+            [
+                translate(Vector2(0, radius).rotate(angle) + self.pos)
+                for radius, angle in [
+                    (0, self.angle),  # nose
+                    (self.radius * 1.2, self.angle - 120),  # left
+                    (self.radius, self.angle - 150),
+                    (self.radius, self.angle + 150),
+                    (self.radius * 1.2, self.angle + 120),  # right
                 ]
             ],
             width=2,
@@ -136,6 +151,20 @@ class Ship(Mob):
                     round(self.radius * Display.rect.width) + random.randrange(3),
                     width=2,
                 )
+        if self.thruster_on:
+            pygame.draw.polygon(
+                surface,
+                self.colour,
+                [
+                    translate(Vector2(0, radius).rotate(angle) + self.pos)
+                    for radius, angle in [
+                        (self.radius, self.angle - 150),
+                        (self.radius * 1.2, self.angle - 180),
+                        (self.radius, self.angle + 150),
+                    ]
+                ],
+                width=2,
+            )
 
     def add_life(self) -> None:
         if self.lives < 10:
@@ -281,9 +310,9 @@ class Asteroid(Mob):
     def __init__(self, size: Size = Size.BIG, **kwargs) -> None:
         self.size = size
         self.radius, speed, self.score = {
-            Size.BIG: (0.1, 0.02, 20),
-            Size.MEDIUM: (0.05, 0.03, 50),
-            Size.SMALL: (0.025, 0.04, 100),
+            Size.BIG: (0.08, 0.01, 20),
+            Size.MEDIUM: (0.04, 0.02, 50),
+            Size.SMALL: (0.02, 0.03, 100),
         }[self.size]
         self.radii = [random.uniform(self.radius * 0.8, self.radius) for _ in range(20)]
 
@@ -322,7 +351,7 @@ class Saucer(Mob):
     def __init__(self, size: Size = Size.BIG, **kwargs) -> None:
         self.size = size
         self.radius, speed, self.score = {
-            Size.BIG: (0.05, 0.015, 200),
+            Size.BIG: (0.04, 0.015, 200),
             Size.SMALL: (0.025, 0.01, 1000),
         }[self.size]
 
@@ -409,10 +438,109 @@ class Saucer(Mob):
             self.firing_timer.resume()
 
 
-class Drone(Mob):
+class Drone(Asteroid):
+    colour: str = "lightblue"
+
+    def __init__(self, size: Size = Size.BIG, **kwargs) -> None:
+        self.ship = kwargs.pop("ship", None)
+        self.size = size
+        self.radius, self.speed, self.score, self.num_fragments = {
+            Size.BIG: (0.05, 0.01, 0, 3),
+            Size.MEDIUM: (0.04, 0.0125, 0, 2),
+            Size.SMALL: (0.025, 0.0175, 200, 0),
+        }[self.size]
+
+        self._speed_squared = self.speed_squared = self.speed**2
+        self._velocity = Vector2(0, self.speed).rotate(random.random() * 360)
+
+        Mob.__init__(self, **kwargs)
+
     @property
     def velocity(self) -> Vector2:
-        return (self.ship.pos - self.pos).normalize() * 0.02
+        if self._speed_squared > self.speed_squared:
+            self._velocity.scale_to_length(self.speed)
+            self._speed_squared = self.speed_squared
+        return self._velocity
+
+    @velocity.setter
+    def velocity(self, value: Vector2) -> None:
+        self._velocity = value
+        self._speed_squared = value.length_squared()
+
+    @property
+    def acceleration(self) -> Vector2:
+        if self.size == Size.BIG:
+            return Vector2(1)
+        return Vector2(0, 0.0075).rotate(self.angle)
+        return (self.ship.pos - self.pos).normalize() * 0.0075
+
+    @acceleration.setter
+    def acceleration(self, _) -> None:
+        pass
+
+    @property
+    def spin(self) -> float:
+        angle_to_ship = 180 - angle_between(self.pos, self.ship.pos)
+        return -10 if (angle_to_ship - self.angle) % 360 < 180 else 10
+
+    @spin.setter
+    def spin(self, value: float) -> None:
+        self._spin = max(-20, min(20, value))
+
+    def draw_segment(self, surface: pygame.Surface, **kwargs) -> None:
+        pos = kwargs.get("pos", self.pos)
+        angle = kwargs.get("angle", self.angle)
+        radius = 0.025
+        pygame.draw.polygon(
+            surface,
+            self.colour,
+            [
+                translate(Vector2(0, radius_).rotate(angle_) + pos)
+                for radius_, angle_ in [
+                    (radius, angle),  # nose
+                    (radius, angle - 120),  # left
+                    (radius / 10, angle + 180),  # tail
+                    (radius, angle + 120),  # right
+                ]
+            ],
+            width=2,
+        )
+
+    def draw(self, surface: pygame.Surface) -> None:
+        if self.size == Size.SMALL:
+            self.draw_segment(surface)
+
+        elif self.size == Size.MEDIUM:
+            offset = math.tan(math.radians(50)) * 0.01
+            self.draw_segment(
+                surface,
+                pos=self.pos + Vector2(0, offset).rotate(self.angle),
+            )
+            self.draw_segment(
+                surface,
+                pos=self.pos - Vector2(0, offset).rotate(self.angle),
+                angle=(self.angle + 180) % 360,
+            )
+
+        elif self.size == Size.BIG:
+            for angle in range(0, 360, 60):
+                self.draw_segment(
+                    surface,
+                    pos=self.pos + Vector2(0, 0.025).rotate(angle),
+                    angle=angle - (60 if angle % 120 == 0 else -60),
+                )
+
+    def fragment(self) -> list[Drone]:
+        fragments = []
+        if self.size == Size.SMALL:
+            return fragments
+
+        size = Size(self.size + 1)
+        pos = self.pos
+        for _ in range(self.num_fragments):
+            angle = random.random() * 360
+            fragments.append(Drone(size=size, pos=pos, angle=angle, ship=self.ship))
+        return fragments
 
 
 class World(ecs.Entity, pygame.sprite.Sprite):
@@ -467,15 +595,28 @@ class World(ecs.Entity, pygame.sprite.Sprite):
 
     def start_level(self) -> None:
         self.asteroids = []
-        for _ in range(self.level + 3):
+        for _ in range(min(6, self.level + 3)):
             self.add_asteroid(
                 Asteroid(
                     pos=Vector2(
-                        0, random.uniform(0.3, 0.7) * Display.rect.width
+                        0, random.uniform(0.5, 0.9) * Display.rect.width
                     ).rotate(random.random() * 360)
                     + self.ship.pos
                 )
             )
+
+        if self.level > 3:
+            self.add_asteroid(
+                Drone(
+                    size=Size.BIG,
+                    pos=Vector2(
+                        0, random.uniform(0.5, 0.9) * Display.rect.width
+                    ).rotate(random.random() * 360)
+                    + self.ship.pos,
+                    ship=self.ship,
+                )
+            )
+
         self.ship.invulnerability_timer.start()
 
     def add_saucer(self) -> None:
@@ -571,7 +712,7 @@ def physics(mob: Mob, world: World) -> None:
     mob.pos += mob.velocity.elementwise() * delta_time
     mob.pos = mob.pos.elementwise() % 1.0
     mob.rect.center = translate(mob.pos)
-    mob.angle += mob.spin * delta_time
+    mob.angle = (mob.angle + mob.spin * delta_time) % 360
 
 
 @ecs.system
