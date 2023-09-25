@@ -34,6 +34,7 @@ class Text(pygame.sprite.Sprite):
         "color": pygame.Color("white"),
         "font_name": None,
         "font_size": 30,
+        "font": None,
         "italic": False,
         "underline": False,
         "wrap_width": 0,
@@ -51,7 +52,8 @@ class Text(pygame.sprite.Sprite):
         self.__dict__.update(config)
 
         self.align = Align[self.align.upper()].value
-        self.font = pygame.font.Font(self.font_name, self.font_size)
+        if not self.font:
+            self.font = pygame.font.Font(self.font_name, self.font_size)
         self.font.bold = self.bold
         self.font.italic = self.italic
         self.font.underline = self.underline

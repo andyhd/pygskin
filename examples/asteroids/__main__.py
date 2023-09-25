@@ -5,7 +5,6 @@ TODO:
     - title screen
     - high score table
     - small ufo: aiming gets better as score increases, 1000pts, appears after 10,000pts
-    - homing fragments: big asteroid/hive splits into multiple homing ships
     - bug: unpausing activates shield
 """
 
@@ -45,6 +44,16 @@ def translate(v: Vector2) -> Vector2:
 
 def random_position() -> Vector2:
     return Vector2(random.random(), random.random())
+
+
+def translate_radial_points(
+    radial_points: list[tuple[float, float]],
+    pos: Vector2,
+) -> None:
+    return [
+        translate(Vector2(0, radius).rotate(angle) + pos)
+        for radius, angle in radial_points
+    ]
 
 
 class Mob(ecs.Entity):
@@ -104,38 +113,43 @@ class Ship(Mob):
     def acceleration(self, _) -> None:
         pass
 
-    def draw(self, surface: pygame.Surface) -> None:
-        if not self.alive:
+    def draw(self, surface: pygame.Surface, **kwargs) -> None:
+        for_lives_meter = "pos" in kwargs
+
+        if not self.alive and not for_lives_meter:
             return
 
+        r = self.radius
+        a = kwargs.get("angle", self.angle)
+        p = kwargs.get("pos", self.pos)
+
+        # fuselage
         pygame.draw.polygon(
             surface,
             self.colour,
-            [
-                translate(Vector2(0, radius).rotate(angle) + self.pos)
-                for radius, angle in [
-                    (self.radius, self.angle),  # nose
-                    (self.radius, self.angle - 150),  # left
-                    (self.radius, self.angle + 150),  # right
-                ]
-            ],
-            width=2,
+            translate_radial_points([(r, a), (r, a - 150), (r, a + 150)], p),
+            width=1,
         )
+        # wings
         pygame.draw.polygon(
             surface,
             self.colour,
-            [
-                translate(Vector2(0, radius).rotate(angle) + self.pos)
-                for radius, angle in [
-                    (0, self.angle),  # nose
-                    (self.radius * 1.2, self.angle - 120),  # left
-                    (self.radius, self.angle - 150),
-                    (self.radius, self.angle + 150),
-                    (self.radius * 1.2, self.angle + 120),  # right
-                ]
-            ],
-            width=2,
+            translate_radial_points(
+                [
+                    (0, a),
+                    (r * 1.2, a - 120),
+                    (r, a - 150),
+                    (r, a + 150),
+                    (r * 1.2, a + 120),
+                ],
+                pos=p,
+            ),
+            width=1,
         )
+
+        if for_lives_meter:
+            return
+
         if self.shield_on:
             timer = self.shield_timer
             shield_percentage = timer.remaining / (timer.seconds * 1000)
@@ -148,24 +162,26 @@ class Ship(Mob):
                     surface,
                     shield_colour,
                     translate(self.pos),
-                    round(self.radius * Display.rect.width) + random.randrange(3),
-                    width=2,
+                    round(r * Display.rect.width) + random.randrange(3),
+                    width=1,
                 )
+
         if self.thruster_on:
             pygame.draw.polygon(
                 surface,
                 self.colour,
-                [
-                    translate(Vector2(0, radius).rotate(angle) + self.pos)
-                    for radius, angle in [
-                        (self.radius, self.angle - 150),
-                        (self.radius * 1.2, self.angle - 180),
-                        (self.radius, self.angle + 150),
-                    ]
-                ],
-                width=2,
+                translate_radial_points(
+                    [
+                        (r, a - 150),
+                        (r * 1.2, a - 180),
+                        (r, a + 150),
+                    ],
+                    self.pos,
+                ),
+                width=1,
             )
 
+    @message
     def add_life(self) -> None:
         if self.lives < 10:
             self.lives += 1
@@ -178,6 +194,7 @@ class Ship(Mob):
         self.spin = 0.0
         self.velocity = Vector2(0)
         self.alive = False
+        self.lives -= 1
 
     @event_listener
     def thrust(self, _: KeyDown.UP) -> None:
@@ -296,7 +313,7 @@ class Explosion(Mob):
                 self.colour,
                 center,
                 radius + i * random.randrange(3),
-                width=2,
+                width=1,
             )
 
 
@@ -328,11 +345,10 @@ class Asteroid(Mob):
         pygame.draw.polygon(
             surface,
             self.colour,
-            [
-                translate(Vector2(0, radius).rotate(self.angle + i * 18) + self.pos)
-                for i, radius in enumerate(self.radii)
-            ],
-            width=2,
+            translate_radial_points(
+                [(r, self.angle + i * 18) for i, r in enumerate(self.radii)], self.pos
+            ),
+            width=1,
         )
 
     @message
@@ -376,34 +392,33 @@ class Saucer(Mob):
         pass
 
     def draw(self, surface: pygame.Surface) -> None:
+        r = self.radius
+
         for shape in [
             [
-                (self.radius, 90),
-                (self.radius * 0.5, 45),
-                (self.radius * 0.5, -45),
-                (self.radius, -90),
+                (r, 90),
+                (r * 0.5, 45),
+                (r * 0.5, -45),
+                (r, -90),
             ],
             [
-                (self.radius, 90),
-                (self.radius * 0.5, 135),
-                (self.radius * 0.5, -135),
-                (self.radius, -90),
+                (r, 90),
+                (r * 0.5, 135),
+                (r * 0.5, -135),
+                (r, -90),
             ],
             [
-                (self.radius * 0.5, 135),
-                (self.radius * 0.75, 160),
-                (self.radius * 0.75, -160),
-                (self.radius * 0.5, -135),
+                (r * 0.5, 135),
+                (r * 0.75, 160),
+                (r * 0.75, -160),
+                (r * 0.5, -135),
             ],
         ]:
             pygame.draw.polygon(
                 surface,
                 self.colour,
-                [
-                    translate(Vector2(0, radius).rotate(angle) + self.pos)
-                    for radius, angle in shape
-                ],
-                width=2,
+                translate_radial_points(shape, self.pos),
+                width=1,
             )
 
     @message
@@ -503,7 +518,7 @@ class Drone(Asteroid):
                     (radius, angle + 120),  # right
                 ]
             ],
-            width=2,
+            width=1,
         )
 
     def draw(self, surface: pygame.Surface) -> None:
@@ -543,6 +558,33 @@ class Drone(Asteroid):
         return fragments
 
 
+class LifeMeter(pygame.sprite.Sprite):
+    def __init__(self, ship: Ship) -> None:
+        super().__init__()
+        self.ship = ship
+        self.image = pygame.Surface(
+            translate(Vector2(1.0, ship.radius * 2.4))
+        ).convert_alpha()
+        self.rect = self.image.get_rect(topleft=translate(Vector2(0.025, 0.075)))
+        self.ship.add_life.subscribe(self.redraw)
+        self.ship.kill.subscribe(self.redraw)
+        self.redraw()
+
+    # @event_listener
+    # def redraw(self, event: Ship.RemoveLife | Ship.AddLife) -> None:
+    def redraw(self) -> None:
+        self.image.fill((0, 0, 0, 0))
+        for i in range(self.ship.lives):
+            self.ship.draw(
+                self.image,
+                angle=180,
+                pos=Vector2(
+                    self.ship.radius * 2.2 + (i * self.ship.radius * 2.5),
+                    self.ship.radius,
+                ),
+            )
+
+
 class World(ecs.Entity, pygame.sprite.Sprite):
     def __init__(self) -> None:
         ecs.Entity.__init__(self)
@@ -561,17 +603,20 @@ class World(ecs.Entity, pygame.sprite.Sprite):
         self.ship = Ship(pos=Vector2(0.5))
         self.ship.kill.subscribe(self.remove_ship)
 
-        kw = {"color": "green", "padding": [10]}
-        self.game_over_label = Text("GAME OVER", center=Display.rect.center, **kw)
-        self.pause_label = Text("PAUSED", center=Display.rect.center, **kw)
+        kw = {
+            "color": "white",
+            "padding": [10],
+            "font": assets.Hyperspace.size(40),
+        }
+        self.game_over_label = Text(
+            "GAME OVER", center=translate(Vector2(0.5, 0.4)), **kw
+        )
+        self.pause_label = Text("PAUSED", center=translate(Vector2(0.5, 0.6)), **kw)
         self.ui = pygame.sprite.Group(
-            DynamicText(lambda: f"Level {self.level}", **kw),
             DynamicText(
-                lambda: f"Lives {self.ship.lives}", bottom=Display.rect.bottom, **kw
+                lambda: f"{self.score}", topleft=translate(Vector2(0.025, 0)), **kw
             ),
-            DynamicText(
-                lambda: f"Score {self.score}", bottomright=Display.rect.size, **kw
-            ),
+            LifeMeter(self.ship),
         )
 
         self.next_level_timer = Timer(seconds=3, on_expire=self.next_level)
@@ -599,7 +644,7 @@ class World(ecs.Entity, pygame.sprite.Sprite):
             self.add_asteroid(
                 Asteroid(
                     pos=Vector2(
-                        0, random.uniform(0.5, 0.9) * Display.rect.width
+                        0, random.uniform(0.7, 0.9) * Display.rect.width
                     ).rotate(random.random() * 360)
                     + self.ship.pos
                 )
@@ -610,7 +655,7 @@ class World(ecs.Entity, pygame.sprite.Sprite):
                 Drone(
                     size=Size.BIG,
                     pos=Vector2(
-                        0, random.uniform(0.5, 0.9) * Display.rect.width
+                        0, random.uniform(0.7, 0.9) * Display.rect.width
                     ).rotate(random.random() * 360)
                     + self.ship.pos,
                     ship=self.ship,
@@ -657,7 +702,6 @@ class World(ecs.Entity, pygame.sprite.Sprite):
             self.ship.add_life()
 
     def remove_ship(self):
-        self.ship.lives -= 1
         Explosion(pos=self.ship.pos)
 
         if self.ship.lives < 1:

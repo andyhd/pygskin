@@ -69,25 +69,25 @@ class Assets:
         return self.__getattr__(name)
 
     def is_recognised_asset(self, path: Path) -> bool:
-        for AssetType in Asset.__subclasses__():
-            if path.suffix in AssetType.suffixes:
+        for asset_class in Asset.__subclasses__():
+            if path.suffix in asset_class.suffixes:
                 return True
         return False
 
 
 class Asset(Protocol):
-    class NotRecognised(Exception):
+    class NotRecognisedError(Exception):
         pass
 
     @classmethod
     def load(cls, path: Path) -> Any:
         if not path.is_file():
             path = next(path.parent.glob(f"{path.stem}.*"))
-        for AssetType in cls.__subclasses__():
-            if path.suffix in AssetType.suffixes:
-                return AssetType(path)
+        for asset_class in cls.__subclasses__():
+            if path.suffix in asset_class.suffixes:
+                return asset_class(path)
 
-        raise cls.NotRecognised(path)
+        raise cls.NotRecognisedError(path)
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self.data, name)
