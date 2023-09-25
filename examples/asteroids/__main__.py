@@ -122,7 +122,7 @@ class Ship(Mob):
         self.invulnerability_timer = Timer(seconds=2)
 
     @property
-    def acceleration(self) -> float:
+    def acceleration(self) -> Vector2:
         if self.alive and self.thruster_on:
             return Ship.thrust_vector.rotate(self.angle)
         return Vector2(0)
@@ -434,7 +434,6 @@ class Drone(Asteroid):
         if self.size == Size.BIG:
             return Vector2(1)
         return Vector2(0, 0.0075).rotate(self.angle)
-        return (self.ship.pos - self.pos).normalize() * 0.0075
 
     @acceleration.setter
     def acceleration(self, _) -> None:
@@ -575,9 +574,9 @@ class World(ecs.Entity, pygame.sprite.Sprite):
         for _ in range(min(6, self.level + 3)):
             self.add_asteroid(
                 Asteroid(
-                    pos=Vector2(
-                        0, random.uniform(0.7, 0.9) * Display.rect.width
-                    ).rotate(random.random() * 360)
+                    pos=Vector2(0, random.uniform(0.7, 0.9)).rotate(
+                        random.random() * 360
+                    )
                     + self.ship.pos
                 )
             )
@@ -586,9 +585,9 @@ class World(ecs.Entity, pygame.sprite.Sprite):
             self.add_asteroid(
                 Drone(
                     size=Size.BIG,
-                    pos=Vector2(
-                        0, random.uniform(0.7, 0.9) * Display.rect.width
-                    ).rotate(random.random() * 360)
+                    pos=Vector2(0, random.uniform(0.7, 0.9)).rotate(
+                        random.random() * 360
+                    )
                     + self.ship.pos,
                     ship=self.ship,
                 )
@@ -630,6 +629,7 @@ class World(ecs.Entity, pygame.sprite.Sprite):
 
     def add_score(self, score: int) -> None:
         self.score += score
+        # TODO ensure only one life is awarded per 10000 points
         if self.score >= 10000 and self.score % 10000 <= score:
             self.ship.add_life()
 
@@ -658,6 +658,7 @@ class World(ecs.Entity, pygame.sprite.Sprite):
             self.ui.remove(self.pause_label)
             for entity in ecs.Entity.instances:
                 if isinstance(entity, Timer):
+                    # TODO avoid activating shield unless key pressed
                     entity.resume()
         self.ship.toggle_pause()
         if self.saucer:
