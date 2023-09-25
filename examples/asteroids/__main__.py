@@ -46,16 +46,6 @@ def random_position() -> Vector2:
     return Vector2(random.random(), random.random())
 
 
-def translate_radial_points(
-    radial_points: list[tuple[float, float]],
-    pos: Vector2,
-) -> None:
-    return [
-        translate(Vector2(0, radius).rotate(angle) + pos)
-        for radius, angle in radial_points
-    ]
-
-
 class Mob(ecs.Entity):
     colour: str = "white"
     radius: float = 0.1
@@ -72,14 +62,33 @@ class Mob(ecs.Entity):
         offset = Vector2(self.radius)
         self.rect = pygame.Rect(translate(self.pos - offset), translate(offset * 2))
 
-    def draw(self, surface: pygame.Surface) -> None:
+    def draw_poly(
+        self, surface: pygame.Surface, radial_points: list[Vector2], **kwargs
+    ) -> None:
+        angle = kwargs.get("angle", self.angle)
+        pos = kwargs.get("pos", self.pos)
+        radius = kwargs.get("radius", self.radius)
+        pygame.draw.polygon(
+            surface,
+            kwargs.get("colour", "white"),
+            [
+                translate(Vector2(0, radius * r_mul).rotate(angle + a_add) + pos)
+                for r_mul, a_add in radial_points
+            ],
+            width=kwargs.get("width", 1),
+        )
+
+    def draw_circle(self, surface: pygame.Surface, **kwargs) -> None:
         pygame.draw.circle(
             surface,
-            self.colour,
-            translate(self.pos),
-            round(self.radius * Display.rect.width),
-            width=1,
+            kwargs.get("colour", self.colour),
+            translate(kwargs.get("pos", self.pos)),
+            round(kwargs.get("radius", self.radius) * Display.rect.width),
+            width=kwargs.get("width", 1),
         )
+
+    def draw(self, surface: pygame.Surface) -> None:
+        self.draw_circle(surface)
 
     def kill(self) -> None:
         with contextlib.suppress(ValueError):
@@ -91,6 +100,15 @@ class Mob(ecs.Entity):
 
 class Ship(Mob):
     radius: float = 0.02
+
+    fuselage = [(1, 0), (1, -150), (1, 150)]
+    wings = [(0, 0), (1.2, -120), (1, -150), (1, 150), (1.2, 120)]
+    exhaust = [(1, -150), (1.2, -180), (1, 150)]
+
+    thrust_vector = Vector2(0, 0.005)
+
+    full_shield_colour = pygame.Color(255, 255, 255, 255)
+    low_shield_colour = pygame.Color(255, 255, 255, 64)
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
@@ -106,8 +124,8 @@ class Ship(Mob):
     @property
     def acceleration(self) -> float:
         if self.alive and self.thruster_on:
-            return Vector2(0, 0.005).rotate(self.angle)
-        return Vector2(0, 0)
+            return Ship.thrust_vector.rotate(self.angle)
+        return Vector2(0)
 
     @acceleration.setter
     def acceleration(self, _) -> None:
@@ -120,32 +138,9 @@ class Ship(Mob):
             return
 
         r = self.radius
-        a = kwargs.get("angle", self.angle)
-        p = kwargs.get("pos", self.pos)
 
-        # fuselage
-        pygame.draw.polygon(
-            surface,
-            self.colour,
-            translate_radial_points([(r, a), (r, a - 150), (r, a + 150)], p),
-            width=1,
-        )
-        # wings
-        pygame.draw.polygon(
-            surface,
-            self.colour,
-            translate_radial_points(
-                [
-                    (0, a),
-                    (r * 1.2, a - 120),
-                    (r, a - 150),
-                    (r, a + 150),
-                    (r * 1.2, a + 120),
-                ],
-                pos=p,
-            ),
-            width=1,
-        )
+        self.draw_poly(surface, Ship.fuselage, **kwargs)
+        self.draw_poly(surface, Ship.wings, **kwargs)
 
         if for_lives_meter:
             return
@@ -153,33 +148,19 @@ class Ship(Mob):
         if self.shield_on:
             timer = self.shield_timer
             shield_percentage = timer.remaining / (timer.seconds * 1000)
-            shield_colour = pygame.Color(255, 255, 255, 64).lerp(
-                pygame.Color(255, 255, 255, 255),
+            shield_colour = Ship.low_shield_colour.lerp(
+                Ship.full_shield_colour,
                 shield_percentage,
             )
             if not self.paused:
-                pygame.draw.circle(
+                self.draw_circle(
                     surface,
-                    shield_colour,
-                    translate(self.pos),
-                    round(r * Display.rect.width) + random.randrange(3),
-                    width=1,
+                    colour=shield_colour,
+                    radius=r + random.uniform(0, 0.00375),
                 )
 
         if self.thruster_on:
-            pygame.draw.polygon(
-                surface,
-                self.colour,
-                translate_radial_points(
-                    [
-                        (r, a - 150),
-                        (r * 1.2, a - 180),
-                        (r, a + 150),
-                    ],
-                    self.pos,
-                ),
-                width=1,
-            )
+            self.draw_poly(surface, Ship.exhaust)
 
     @message
     def add_life(self) -> None:
@@ -297,24 +278,15 @@ class Explosion(Mob):
     colour: str = "orange"
 
     def __init__(self, **kwargs) -> None:
-        self.anim_radius = Animation(
-            {0: 0.0, 200: self.radius},
-        )
+        self.anim_radius = Animation({0: 0.0, 200: 1.0})
         self.anim_radius.end.subscribe(self.kill)
         self.anim_radius.start()
         super().__init__(**kwargs)
 
     def draw(self, surface: pygame.Surface) -> None:
-        center = translate(self.pos)
-        radius = round(self.anim_radius.current_frame() * Display.rect.width)
+        radius = self.anim_radius.current_frame() * self.radius
         for i in range(2):
-            pygame.draw.circle(
-                surface,
-                self.colour,
-                center,
-                radius + i * random.randrange(3),
-                width=1,
-            )
+            self.draw_circle(surface, radius=radius + i * random.uniform(0.0, 0.00375))
 
 
 class Size(IntEnum):
@@ -331,7 +303,8 @@ class Asteroid(Mob):
             Size.MEDIUM: (0.04, 0.02, 50),
             Size.SMALL: (0.02, 0.03, 100),
         }[self.size]
-        self.radii = [random.uniform(self.radius * 0.8, self.radius) for _ in range(20)]
+
+        self.points = [Vector2(random.uniform(0.8, 1), i * 18) for i in range(20)]
 
         super().__init__(**kwargs)
 
@@ -342,14 +315,7 @@ class Asteroid(Mob):
         self.spin = random.uniform(-10, 10)
 
     def draw(self, surface: pygame.Surface) -> None:
-        pygame.draw.polygon(
-            surface,
-            self.colour,
-            translate_radial_points(
-                [(r, self.angle + i * 18) for i, r in enumerate(self.radii)], self.pos
-            ),
-            width=1,
-        )
+        self.draw_poly(surface, self.points)
 
     @message
     def kill(self) -> None:
@@ -364,6 +330,12 @@ class Asteroid(Mob):
 
 
 class Saucer(Mob):
+    sections = [
+        [(1, 90), (0.5, 45), (0.5, -45), (1, -90)],
+        [(1, 90), (0.5, 135), (0.5, -135), (1, -90)],
+        [(0.5, 135), (0.75, 160), (0.75, -160), (0.5, -135)],
+    ]
+
     def __init__(self, size: Size = Size.BIG, **kwargs) -> None:
         self.size = size
         self.radius, speed, self.score = {
@@ -392,34 +364,8 @@ class Saucer(Mob):
         pass
 
     def draw(self, surface: pygame.Surface) -> None:
-        r = self.radius
-
-        for shape in [
-            [
-                (r, 90),
-                (r * 0.5, 45),
-                (r * 0.5, -45),
-                (r, -90),
-            ],
-            [
-                (r, 90),
-                (r * 0.5, 135),
-                (r * 0.5, -135),
-                (r, -90),
-            ],
-            [
-                (r * 0.5, 135),
-                (r * 0.75, 160),
-                (r * 0.75, -160),
-                (r * 0.5, -135),
-            ],
-        ]:
-            pygame.draw.polygon(
-                surface,
-                self.colour,
-                translate_radial_points(shape, self.pos),
-                width=1,
-            )
+        for section in Saucer.sections:
+            self.draw_poly(surface, section)
 
     @message
     def kill(self) -> None:
@@ -455,6 +401,7 @@ class Saucer(Mob):
 
 class Drone(Asteroid):
     colour: str = "lightblue"
+    segment = [(1, 0), (1, -120), (0.1, 180), (1, 120)]
 
     def __init__(self, size: Size = Size.BIG, **kwargs) -> None:
         self.ship = kwargs.pop("ship", None)
@@ -502,47 +449,32 @@ class Drone(Asteroid):
     def spin(self, value: float) -> None:
         self._spin = max(-20, min(20, value))
 
-    def draw_segment(self, surface: pygame.Surface, **kwargs) -> None:
-        pos = kwargs.get("pos", self.pos)
-        angle = kwargs.get("angle", self.angle)
-        radius = 0.025
-        pygame.draw.polygon(
-            surface,
-            self.colour,
-            [
-                translate(Vector2(0, radius_).rotate(angle_) + pos)
-                for radius_, angle_ in [
-                    (radius, angle),  # nose
-                    (radius, angle - 120),  # left
-                    (radius / 10, angle + 180),  # tail
-                    (radius, angle + 120),  # right
-                ]
-            ],
-            width=1,
-        )
-
     def draw(self, surface: pygame.Surface) -> None:
+        angle = self.angle
+        pos = self.pos
+
         if self.size == Size.SMALL:
-            self.draw_segment(surface)
+            self.draw_poly(surface, Drone.segment)
 
         elif self.size == Size.MEDIUM:
             offset = math.tan(math.radians(50)) * 0.01
-            self.draw_segment(
-                surface,
-                pos=self.pos + Vector2(0, offset).rotate(self.angle),
-            )
-            self.draw_segment(
-                surface,
-                pos=self.pos - Vector2(0, offset).rotate(self.angle),
-                angle=(self.angle + 180) % 360,
-            )
+            for a_add in (0, 180):
+                self.draw_poly(
+                    surface,
+                    Drone.segment,
+                    angle=angle + a_add,
+                    pos=pos + Vector2(0, offset).rotate(angle + a_add),
+                    radius=0.025,
+                )
 
         elif self.size == Size.BIG:
             for angle in range(0, 360, 60):
-                self.draw_segment(
+                self.draw_poly(
                     surface,
-                    pos=self.pos + Vector2(0, 0.025).rotate(angle),
+                    Drone.segment,
+                    pos=pos + Vector2(0, 0.025).rotate(angle),
                     angle=angle - (60 if angle % 120 == 0 else -60),
+                    radius=0.025,
                 )
 
     def fragment(self) -> list[Drone]:
