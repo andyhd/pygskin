@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import contextlib
+from collections.abc import Callable
+from collections.abc import Iterable
 from dataclasses import dataclass
 from dataclasses import field
-from typing import Callable
-from typing import Iterable
 
 import pygame
 from pygame.math import Vector2
@@ -69,14 +70,13 @@ class Particle(pygame.sprite.Sprite, ecs.Entity):
 
     def redraw(self) -> None:
         self._image = None
-        self.image
 
     @property
     def rect(self):
         return self.image.get_rect(center=self.pos)
 
     @on_tick
-    def update(self, dt: int) -> None:
+    def update(self, dt: int, **_) -> None:
         self.acceleration = Vector2(0, 0)
         for force in self.forces:
             force(self, dt)
@@ -90,10 +90,9 @@ class Particle(pygame.sprite.Sprite, ecs.Entity):
     def kill(self, callback: Callable[[Particle], None] | None = None) -> None:
         if callable(callback):
             callback(self)
-        try:
+        with contextlib.suppress(ValueError):
             ecs.Entity.instances.remove(self)
-        except ValueError:
-            pass
+
         super().kill()
 
 
@@ -119,7 +118,7 @@ class Emitter(ecs.Entity):
         # TODO pre-fill
 
     @on_tick
-    def update(self, _) -> None:
+    def update(self, _, **__) -> None:
         # TODO use delta time to control rate of particle emission (eg 3/sec)
         for stream in self.streams:
             for particle in next(stream):
