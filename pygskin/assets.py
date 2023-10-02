@@ -40,7 +40,7 @@ class Assets:
             if self.is_recognised_asset(f)
         ]
         self.load_started(children=children)
-        for child, size in children:
+        for child, _ in children:
             if child.is_dir():
                 subdir = Assets(child)
                 subdir.asset_loaded.subscribe(self.asset_loaded)
@@ -81,13 +81,22 @@ class Asset(Protocol):
 
     @classmethod
     def load(cls, path: Path) -> Any:
-        if not path.is_file():
-            path = next(path.parent.glob(f"{path.stem}.*"))
-        for asset_class in cls.__subclasses__():
-            if path.suffix in asset_class.suffixes:
-                return asset_class(path)
+        asset_class_lookup = {
+            suffix: asset_class
+            for asset_class in cls.__subclasses__()
+            for suffix in asset_class.suffixes
+        }
 
-        raise cls.NotRecognisedError(path)
+        if not path.is_file():
+            for candidate in path.parent.glob(f"{path.stem}.*"):
+                if candidate.suffix in asset_class_lookup:
+                    path = candidate
+                    break
+
+        if path.suffix not in asset_class_lookup:
+            raise cls.NotRecognisedError(path)
+
+        return asset_class_lookup[path.suffix](path)
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self.data, name)

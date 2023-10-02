@@ -11,7 +11,6 @@ from pygame.sprite import Sprite
 
 from pygskin import ecs
 from pygskin.assets import Assets
-from pygskin.clock import Clock
 from pygskin.clock import on_tick
 from pygskin.direction import Direction
 from pygskin.display import Display

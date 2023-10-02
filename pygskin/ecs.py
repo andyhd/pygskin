@@ -41,6 +41,9 @@ class System(Protocol):
         ...
 
 
+# TODO - use Decorator
+#      - allow @ecs.system to decorate method
+#      - allow args to decorator to set filter, update_kwargs callbacks
 def system(fn: Callable) -> System:
     hints = get_type_hints(fn)
     entity_class = next(iter(hints.values()))

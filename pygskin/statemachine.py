@@ -83,5 +83,5 @@ class StateMachine:
             else:
                 self.not_triggered(input, self.state)
 
-    def send(self, *args, **kwargs) -> State | None:
-        return self._statemachine.send(*args, **kwargs)
+    def send(self, input: Input) -> State | None:
+        return self._statemachine.send(input)

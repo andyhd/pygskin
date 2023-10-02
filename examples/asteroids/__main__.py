@@ -6,6 +6,7 @@ TODO:
     - high score table
     - small ufo: aiming gets better as score increases, 1000pts, appears after 10,000pts
     - bug: unpausing activates shield
+    - bug: drones and asteroids get stuck in shield
 """
 
 from __future__ import annotations
@@ -30,6 +31,9 @@ from pygskin.events import KeyUp
 from pygskin.events import Quit
 from pygskin.events import event_listener
 from pygskin.pubsub import message
+from pygskin.screen import Screen
+from pygskin.screen import ScreenManager
+from pygskin.screen import screen_transition
 from pygskin.text import DynamicText
 from pygskin.text import Text
 from pygskin.utils import angle_between
@@ -744,13 +748,25 @@ def collisions(ship: Ship, world: World) -> None:
             ship.kill()
 
 
-class Game(Window):
-    def __init__(self) -> None:
-        super().__init__(title="Asteroids", size=(800, 800))
+class MainMenu(Screen):
+    def load(self, *_) -> None:
+        self.image.blit(assets.main_menu.data, (0, 0))
 
-        assets.load()
-        assets.thrust.set_volume(0.5)
+        prompt = Text(
+            "Press SPACE to start",
+            font=assets.Hyperspace.size(30),
+            padding=[20],
+            midbottom=self.rect.midbottom,
+        )
+        self.image.blit(prompt.image, prompt.rect)
 
+    @event_listener
+    def start(self, _: KeyDown.SPACE) -> None:
+        self.exit()
+
+
+class Gameplay(Screen):
+    def load(self, *args, **kwargs) -> None:
         self.systems.extend(
             [
                 physics(),
@@ -762,12 +778,42 @@ class Game(Window):
         self.world = World()
         self.world.load()
 
-    def update(self, **_) -> None:
+    def update(self) -> None:
         super().update(world=self.world)
+
+
+class GameOver(Screen):
+    pass
+
+
+class Game(Window, ScreenManager):
+    def __init__(self) -> None:
+        Window.__init__(self, title="Asteroids", size=(800, 800))
+
+        assets.load()
+        assets.thrust.set_volume(0.5)
+
+        self.screen = MainMenu()
+
+    def update(self, **_) -> None:
+        Window.update(self)
+        ScreenManager.update(self)
 
     @event_listener
     def quit(self, _: Quit | KeyDown.ESCAPE) -> None:
         self.running = False
+
+    @screen_transition
+    def start(self, state: MainMenu) -> Screen:
+        return Gameplay()
+
+    @screen_transition
+    def game_over(self, state: Gameplay) -> Screen:
+        return GameOver()
+
+    @screen_transition
+    def restart(self, state: GameOver) -> Screen:
+        return MainMenu()
 
 
 if __name__ == "__main__":
