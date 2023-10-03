@@ -7,6 +7,8 @@ from typing import ClassVar
 from typing import Protocol
 from typing import get_type_hints
 
+from pygskin.utils import Decorator
+
 
 class Entity:
     instances: ClassVar[list[Entity]] = []
@@ -29,39 +31,22 @@ class Entity:
         return any(isinstance(attr, components) for _, attr in inspect.getmembers(self))
 
 
-class System(Protocol):
+class System(Decorator):
     def update(self, entities: list[Entity], **kwargs) -> None:
         for entity in filter(self.filter, entities):
             self.update_entity(entity, **kwargs)
 
     def filter(self, entity: Entity) -> bool:
-        return True
+        return isinstance(entity, self.entity_class)
 
-    def update_entity(self, entity: Entity, **kwargs) -> None:
-        ...
+    def update_entity(self, entity: Entity, *args, **kwargs) -> None:
+        self.call_function(entity, *args, **kwargs)
 
+    def set_function(self, fn: Callable) -> None:
+        super().set_function(fn)
 
-# TODO - use Decorator
-#      - allow @ecs.system to decorate method
-#      - allow args to decorator to set filter, update_kwargs callbacks
-def system(fn: Callable) -> System:
-    hints = get_type_hints(fn)
-    entity_class = next(iter(hints.values()))
-
-    def filter_method(self, entity) -> bool:
-        return isinstance(entity, entity_class)
-
-    def update_entity_method(self, *args, **kwargs) -> None:
-        fn(*args, **kwargs)
-
-    return type(
-        fn.__name__,
-        (System,),
-        {
-            "filter": filter_method,
-            "update_entity": update_entity_method,
-        },
-    )
+        hints = get_type_hints(fn)
+        self.entity_class = next(iter(hints.values()))
 
 
 class Container:

@@ -257,7 +257,7 @@ class Score(Text):
         del self.image
 
 
-@ecs.system
+@ecs.System
 def move(snake: Snake, world: World, paused: bool, game_over: bool) -> None:
     if snake.should_update and not paused and not game_over:
         snake.grow()
@@ -284,7 +284,7 @@ class Game(Window):
             background=(0, 40, 0),
         )
 
-        self.systems.append(move())
+        self.systems.append(move)
 
         spritesheet = Spritesheet(assets.snake, Grid(4, 4), SNAKE_SPRITE_MAP)
 

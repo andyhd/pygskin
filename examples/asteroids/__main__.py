@@ -684,7 +684,7 @@ class World(ecs.Entity, pygame.sprite.Sprite):
         return message.CANCEL
 
 
-@ecs.system
+@ecs.System
 def physics(mob: Mob, world: World) -> None:
     if world.paused:
         return
@@ -697,7 +697,7 @@ def physics(mob: Mob, world: World) -> None:
     mob.angle = (mob.angle + mob.spin * delta_time) % 360
 
 
-@ecs.system
+@ecs.System
 def bullets(bullet: Bullet, world: World) -> None:
     if world.paused:
         return
@@ -727,7 +727,7 @@ def bullets(bullet: Bullet, world: World) -> None:
             ship.kill()
 
 
-@ecs.system
+@ecs.System
 def collisions(ship: Ship, world: World) -> None:
     if world.paused or not ship.alive:
         return
@@ -770,9 +770,9 @@ class Gameplay(Screen):
     def load(self, *args, **kwargs) -> None:
         self.systems.extend(
             [
-                physics(),
-                bullets(),
-                collisions(),
+                physics,
+                bullets,
+                collisions,
             ]
         )
 
