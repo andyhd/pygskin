@@ -8,9 +8,10 @@ import pygame
 
 from pygskin import ecs
 from pygskin.pubsub import message
+from pygskin.utils import Decorator
 
 
-class TickHandler(message):
+class TickHandler(Decorator):
     pass
 
 
@@ -23,6 +24,7 @@ class Clock(ecs.System):
     options: dict = {}
 
     def __init__(self, **options) -> None:
+        super().__init__()
         Clock.options.update(options)
         Clock.delta_time = 0
 
@@ -32,14 +34,13 @@ class Clock(ecs.System):
 
     @classmethod
     def update(cls, entities: Iterable[ecs.Entity], **kwargs) -> None:
-        cls.delta_time = cls._clock.tick(cls.options.setdefault("fps", 60))
-        kwargs["delta_time"] = cls.delta_time
+        dt = cls.delta_time = cls._clock.tick(cls.options.setdefault("fps", 60))
         for entity in filter(cls.filter, entities):
-            cls.update_entity(entity, **kwargs)
+            cls.update_entity(entity, dt, **kwargs)
 
     @classmethod
-    def update_entity(cls, entity: ecs.Entity, **kwargs) -> None:
-        entity.TickHandler(cls.delta_time, **kwargs)
+    def update_entity(cls, entity: ecs.Entity, dt: float, *args, **kwargs) -> None:
+        entity.TickHandler(dt, *args, **kwargs)
 
 
 @dataclass
@@ -84,7 +85,7 @@ class Timer(ecs.Entity):
         self.started = False
 
     @on_tick
-    def update(self, dt: int, **_) -> None:
+    def update(self, dt: float, **_) -> None:
         if self.started and not (self.ended or self.paused):
             self.remaining -= dt
             if self.remaining <= 0:
@@ -103,18 +104,3 @@ class Timer(ecs.Entity):
     @classmethod
     def factory(cls, seconds: float = 0.0) -> Callable[[], Timer]:
         return lambda: Timer(seconds)
-
-
-# class IntervalSystem(TickSystem):
-#     interval = 0
-
-#     def __init__(self, **options):
-#         super().__init__(**options)
-#         self.timer = self.interval
-
-#     def should_update(self, **kwargs) -> bool:
-#         self.timer -= self.ms_since_last_tick
-#         if self.timer <= 0:
-#             self.timer = self.interval
-#             return True
-#         return False

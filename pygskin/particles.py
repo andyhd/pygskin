@@ -118,7 +118,7 @@ class Emitter(ecs.Entity):
         # TODO pre-fill
 
     @on_tick
-    def update(self, _, **__) -> None:
+    def update(self, *_, **__) -> None:
         # TODO use delta time to control rate of particle emission (eg 3/sec)
         for stream in self.streams:
             for particle in next(stream):

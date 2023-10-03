@@ -31,9 +31,9 @@ class Entity:
 
 
 class System(Decorator):
-    def update(self, entities: list[Entity], **kwargs) -> None:
+    def update(self, entities: list[Entity], *args, **kwargs) -> None:
         for entity in filter(self.filter, entities):
-            self.update_entity(entity, **kwargs)
+            self.update_entity(entity, *args, **kwargs)
 
     def filter(self, entity: Entity) -> bool:
         return isinstance(entity, self.entity_class)

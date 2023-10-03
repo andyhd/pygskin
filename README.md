@@ -7,7 +7,7 @@ A wrapper around Pygame
 
 * [x] Convert ecs.system decorator to use utils.Decorator
 * [x] ecs.system arguments to set filter function
-* [ ] Tidy up Clock.on_tick - use utils.Decorator, sort out kwargs
+* [x] Tidy up Clock.on_tick - use utils.Decorator, sort out kwargs
 * [ ] ScreenTransition should take from-state as argument, or inner class
 * [ ] Screen transition animations
 * [ ] particles.Emitter pre-fill
