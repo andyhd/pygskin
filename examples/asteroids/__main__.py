@@ -34,7 +34,6 @@ from pygskin.events import event_listener
 from pygskin.pubsub import message
 from pygskin.screen import Screen
 from pygskin.screen import ScreenManager
-from pygskin.screen import screen_transition
 from pygskin.text import DynamicText
 from pygskin.text import Text
 from pygskin.utils import angle_between
@@ -804,16 +803,16 @@ class Game(Window, ScreenManager):
     def quit(self, _: Quit | KeyDown.ESCAPE) -> None:
         self.running = False
 
-    @screen_transition
-    def start(self, state: MainMenu) -> Screen:
+    @MainMenu.transition
+    def start(self) -> Screen:
         return Gameplay()
 
-    @screen_transition
-    def game_over(self, state: Gameplay) -> Screen:
+    @Gameplay.transition
+    def game_over(self) -> Screen:
         return GameOver()
 
-    @screen_transition
-    def restart(self, state: GameOver) -> Screen:
+    @GameOver.transition
+    def restart(self) -> Screen:
         return MainMenu()
 
 

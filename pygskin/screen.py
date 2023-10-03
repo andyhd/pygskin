@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import inspect
 from collections.abc import Callable
 from typing import Any
@@ -33,6 +35,13 @@ class Screen(pygame.sprite.Sprite, ecs.Entity, ecs.Container):
 
     def update(self, **kwargs) -> None:
         ecs.Container.update(self, **kwargs)
+
+    @classmethod
+    def transition(cls, fn: Callable) -> ScreenTransition:
+        transition = ScreenTransition()
+        transition.set_args(cls)
+        transition.set_function(fn)
+        return transition
 
 
 class ScreenManager:
@@ -81,25 +90,13 @@ class ScreenManager:
 
 
 class ScreenTransition(Decorator):
-    # TODO take from-state as decorator argument
-    #      eg: @screen_transition(MainMenu)
-    #      or make inner class of Screen class, eg:
-    #      @MainMenu.Transition
-    def set_function(self, fn: Callable) -> None:
-        super().set_function(fn)
-
-        sig = inspect.signature(fn, eval_str=True)
-        for i, (name, param) in enumerate(sig.parameters.items()):
-            if i == 0 and name == "self":
-                continue
-            if issubclass(param.annotation, Screen):
-                self.screen_class = param.annotation
-                break
-        else:
-            raise ValueError("ScreenTransition must specify a Screen as first argument")
+    def set_args(self, *args, **kwargs) -> None:
+        super().set_args(*args, **kwargs)
+        if args and issubclass(args[0], Screen):
+            self.screen_class = args[0]
 
     def call_function(self, *args) -> Any:
-        if next_screen := super().call_function(self.obj.screen):
+        if next_screen := super().call_function():
             self.obj.screen = next_screen
             return next_screen.__class__
 

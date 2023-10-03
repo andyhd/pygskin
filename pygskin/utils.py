@@ -51,8 +51,8 @@ class Decorator:
         self.obj = kwargs.get("obj")
         self.fn: Callable | None = None
         self.name: str | None = None
-        self.args: list | None = None
-        self.kwargs: dict | None = None
+        self.args: list = []
+        self.kwargs: dict = {}
 
         if len(args) == 1 and callable(args[0]):
             self.set_function(args[0])
@@ -86,6 +86,7 @@ class Decorator:
             if self.fn:
                 fn = functools.partial(self.fn, obj)
             decorator = type(self)(fn, obj=obj)
+            decorator.set_args(*self.args, **self.kwargs)
             setattr(obj, self.name, decorator)
             return decorator
         return self
