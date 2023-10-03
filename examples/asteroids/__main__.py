@@ -7,6 +7,7 @@ TODO:
     - small ufo: aiming gets better as score increases, 1000pts, appears after 10,000pts
     - bug: unpausing activates shield
     - bug: drones and asteroids get stuck in shield
+    - bug: extra life per 10000 points can be awarded more than once
 """
 
 from __future__ import annotations
