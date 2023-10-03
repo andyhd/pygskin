@@ -4,7 +4,6 @@ import inspect
 from collections.abc import Callable
 from typing import Any
 from typing import ClassVar
-from typing import Protocol
 from typing import get_type_hints
 
 from pygskin.utils import Decorator
@@ -41,6 +40,10 @@ class System(Decorator):
 
     def update_entity(self, entity: Entity, *args, **kwargs) -> None:
         self.call_function(entity, *args, **kwargs)
+
+    def set_args(self, *args, **kwargs) -> None:
+        super().set_args()
+        self.filter = kwargs.get("filter", self.filter)
 
     def set_function(self, fn: Callable) -> None:
         super().set_function(fn)
