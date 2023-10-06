@@ -505,8 +505,6 @@ class LifeMeter(pygame.sprite.Sprite):
         self.ship.kill.subscribe(self.redraw)
         self.redraw()
 
-    # @event_listener
-    # def redraw(self, event: Ship.RemoveLife | Ship.AddLife) -> None:
     def redraw(self) -> None:
         self.image.fill((0, 0, 0, 0))
         for i in range(self.ship.lives):

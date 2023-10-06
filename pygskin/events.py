@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import inspect
-import sys
 import types
 import typing
 from collections.abc import Callable
 from collections.abc import Iterable
 from typing import Any
+from typing import overload
 
 import pygame
 
@@ -16,55 +16,117 @@ from pygskin.utils import Decorator
 
 
 class Event:
-    _type: int = -1
+    TYPE_MAP: dict[int, type[Event]] = {}
+    event_type: int | None = None
 
+    @overload
     def __init__(self, event: pygame.event.Event) -> None:
-        self.metadata = set(event.__dict__.items())
-        self.type = event.type
+        ...
+
+    @overload
+    def __init__(self, metadata: dict[str, Any] | None = None, **kwargs) -> None:
+        ...
+
+    def __init__(self, *args, **kwargs) -> None:
+        match args:
+            case (pygame.event.Event() as event,):
+                if self.event_type is None or event.type != self.event_type:
+                    raise ValueError(
+                        f"{self.__class__.__name__} got unexpected event type: {event}"
+                    )
+                self.metadata = set(event.__dict__.items())
+
+            case (dict() as metadata,):
+                self.metadata = metadata
+
+            case _:
+                self.metadata = kwargs
+
         self.__dict__.update(self.metadata)
+
+    def __init_subclass__(cls, **kwargs) -> None:
+        if event_type := kwargs.get("event_type"):
+            cls.event_type = int(event_type)
+            Event.TYPE_MAP[cls.event_type] = cls
 
     @classmethod
     def build(cls, event: pygame.event.Event) -> Event | None:
-        class_name = EVENT_TYPE_MAP.get(event.type)
-        if class_name:
-            event_class = getattr(sys.modules[__name__], class_name)
-            if class_name in ("KeyDown", "KeyUp"):
-                subclass_name = KEY_MAP.get(event.key)
-                if subclass_name:
-                    event_class = getattr(event_class, subclass_name)
+        if event_class := Event.TYPE_MAP.get(event.type):
+            # XXX avoid recursion
+            if "build" in cls.__dict__:
+                return event_class.build(event)
+            return event_class(event)
+
+    def post(self) -> bool:
+        return pygame.event.post(
+            pygame.event.Event(self.event_type, dict(self.metadata))
+        )
+
+
+class KeyEvent(Event):
+    KEY_MAP = {
+        value: f'{"_" if name[2:].isdigit() else ""}{name[2:].upper()}'
+        for name, value in pygame.__dict__.items()
+        if name.startswith("K_") and name not in ("K_LAST",)
+    }
+
+    def __init__(self, *args, **kwargs) -> None:
+        match args:
+            case (pygame.event.Event() as event,):
+                if event.type != self.event_type or event.key != self.key:
+                    raise ValueError(
+                        f"{self.__class__.__name__} got unexpected event type: {event}"
+                    )
+
+        super().__init__(*args, **kwargs)
+
+    def __init_subclass__(cls, **kwargs) -> None:
+        if "event_type" in kwargs:
+            super().__init_subclass__(**kwargs)
+            cls.KEY_MAP = {}
+            direction_names = {d.name for d in Direction}
+            for key_code, key_name in KeyEvent.KEY_MAP.items():
+                attrs = {"key": key_code}
+                if key_name in direction_names:
+                    attrs["direction"] = Direction[key_name]
+                subclass = type(f"{cls.__name__}.{key_name}", (cls,), attrs)
+                cls.KEY_MAP[key_code] = subclass
+                setattr(cls, key_name, subclass)
+
+    @classmethod
+    def build(cls, event: pygame.event.Event) -> Event | None:
+        if event.type == cls.event_type and (event_class := cls.KEY_MAP.get(event.key)):
             return event_class(event)
 
 
-KEY_MAP = {
-    value: f'{"_" if name[2:].isdigit() else ""}{name[2:].upper()}'
-    for name, value in pygame.__dict__.items()
-    if name.startswith("K_") and name not in ["K_LAST"]
-}
+class KeyDown(KeyEvent, event_type=pygame.KEYDOWN):
+    pass
 
-EVENT_TYPE_MAP = {}
-for class_name in [
-    "KeyDown",
-    "KeyUp",
-    "MouseButtonDown",
-    "MouseButtonUp",
-    "MouseMotion",
-    "Quit",
-]:
-    event_type = getattr(pygame, class_name.upper())
-    EVENT_TYPE_MAP[event_type] = class_name
-    event_class = type(class_name, (Event,), {"_type": event_type})
-    setattr(sys.modules[__name__], class_name, event_class)
 
-    if class_name in ("KeyDown", "KeyUp"):
-        for value, subclass_name in KEY_MAP.items():
-            attrs = {"key": value}
-            if subclass_name in ("UP", "DOWN", "LEFT", "RIGHT"):
-                attrs["direction"] = Direction[subclass_name]
-            setattr(
-                event_class,
-                subclass_name,
-                type(f"{class_name}.{subclass_name}", (event_class,), attrs),
-            )
+class KeyUp(KeyEvent, event_type=pygame.KEYUP):
+    pass
+
+
+class MouseButtonDown(Event, event_type=pygame.MOUSEBUTTONDOWN):
+    pass
+
+
+class MouseButtonUp(Event, event_type=pygame.MOUSEBUTTONUP):
+    pass
+
+
+class MouseMotion(Event, event_type=pygame.MOUSEMOTION):
+    pass
+
+
+class Quit(Event, event_type=pygame.QUIT):
+    pass
+
+
+class CustomEvent(Event):
+    def __init_subclass__(cls, **kwargs) -> None:
+        cls.event_type = pygame.event.custom_type()
+        super().__init_subclass__(event_type=cls.event_type)
 
 
 class EventListener(Decorator):
