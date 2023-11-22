@@ -6,6 +6,7 @@ import typing
 from collections.abc import Callable
 from collections.abc import Iterable
 from typing import Any
+from typing import ClassVar
 from typing import overload
 
 import pygame
@@ -16,8 +17,8 @@ from pygskin.utils import Decorator
 
 
 class Event:
-    TYPE_MAP: dict[int, type[Event]] = {}
-    event_type: int | None = None
+    TYPE_MAP: ClassVar[dict[int, type[Event]]] = {}
+    event_type: ClassVar[int | None] = None
 
     @overload
     def __init__(self, event: pygame.event.Event) -> None:
