@@ -21,12 +21,14 @@ on_tick = TickHandler
 class Clock(ecs.System):
     _clock = pygame.time.Clock()
     delta_time: float = 0
+    ticks: int = 0
     options: dict = {}
 
     def __init__(self, **options) -> None:
         super().__init__()
         Clock.options.update(options)
         Clock.delta_time = 0
+        Clock.ticks = 0
 
     @classmethod
     def filter(cls, entity: ecs.Entity) -> bool:
@@ -35,6 +37,7 @@ class Clock(ecs.System):
     @classmethod
     def update(cls, entities: Iterable[ecs.Entity], **kwargs) -> None:
         dt = cls.delta_time = cls._clock.tick(cls.options.setdefault("fps", 60))
+        cls.ticks += dt
         for entity in filter(cls.filter, entities):
             cls.update_entity(entity, dt, **kwargs)
 
