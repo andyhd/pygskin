@@ -20,12 +20,12 @@ def to_snake_case(s):
 def rotate(
     surface: pygame.Surface,
     angle: float,
-    center: Iterable[float],
-    offset: Iterable[float],
+    center: pygame.Vector2,
+    offset: pygame.Vector2 | None = None,
 ) -> tuple[pygame.Surface, pygame.Rect]:
     rotated_surface = pygame.transform.rotate(surface, angle)
-    rotated_offset = pygame.math.Vector2(offset).rotate(-angle)
-    rect = rotated_surface.get_rect(center=center + rotated_offset)
+    offset = offset.rotate(-angle) if offset else pygame.Vector2(0)
+    rect = rotated_surface.get_rect(center=center + offset)
     return rotated_surface, rect
 
 
