@@ -1,13 +1,17 @@
 from __future__ import annotations
 
-from functools import cache
+import inspect
 from pathlib import Path
 from typing import Any
-from typing import Protocol
+from typing import Callable
 
 import pygame
+from ruamel.yaml import YAML
 
 from pygskin.pubsub import message
+
+
+AssetFilter = Callable[[Path], bool]
 
 
 class Assets:
@@ -25,135 +29,144 @@ class Assets:
     (1, 1)
     """
 
-    def __init__(self, path: Path | None = None) -> None:
-        self.path = path or Path(__file__).parent / "assets"
+    def __init__(self, path: str | Path | None = None) -> None:
+        match path:
+            case Path():
+                self.path = path
+            case str():
+                self.path = Path(path)
+            case None:
+                caller_path = Path(inspect.stack()[1].filename)
+                if caller_path.is_file():
+                    self.path = caller_path.parent / "assets"
+                else:
+                    self.path = Path("assets")
+            case _:
+                raise TypeError
+
         self.cache = {}
-        self.load_started = message()
-        self.asset_loaded = message()
-        self.load_finished = message()
 
-    def load(self) -> None:
-        """Load all assets into cache."""
-        children = [
-            (f, f.stat().st_size)
-            for f in Path(self.path).rglob("**/*")
-            if self.is_recognised_asset(f)
-        ]
-        self.load_started(children=children)
-        for child, _ in children:
-            if child.is_dir():
-                subdir = Assets(child)
-                subdir.asset_loaded.subscribe(self.asset_loaded)
-                subdir.load()
-                self.cache[child.name] = subdir
-            else:
-                self.cache[child.name] = Asset.load(child)
-                self.asset_loaded(child)
-        self.loaded = True
-        self.load_finished()
+    @property
+    def asset_class_by_suffix(self) -> dict[str]:
+        return {ext: cls for cls in Asset.__subclasses__() for ext in cls.suffixes}
 
-    def __getattr__(self, name: str) -> Any:
-        """Enable attribute access."""
-        try:
-            return self.cache[name]
-        except KeyError:
-            pass
-
-        path = self.path / name
-        if path.is_dir():
-            return self.cache.setdefault(name, Assets(path))
-
-        return self.cache.setdefault(name, Asset.load(path))
-
-    def __getitem__(self, name: str) -> Any:
-        return self.__getattr__(name)
-
-    def is_recognised_asset(self, path: Path) -> bool:
-        for asset_class in Asset.__subclasses__():
-            if path.suffix in asset_class.suffixes:
-                return True
-        return False
-
-
-class Asset(Protocol):
-    class NotRecognisedError(Exception):
+    @message
+    def bulk_load_started(self, children: list[tuple[Path, int]]) -> None:
         pass
 
-    @classmethod
-    def load(cls, path: Path) -> Any:
-        asset_class_lookup = {
-            suffix: asset_class
-            for asset_class in cls.__subclasses__()
-            for suffix in asset_class.suffixes
-        }
+    @message
+    def bulk_load_ended(self, children: list[tuple[Path, int]]) -> None:
+        pass
+
+    @message
+    def asset_loaded(self, asset: Asset) -> None:
+        pass
+
+    def load(self, path: Path) -> Any:
+        asset_class_by_suffix = self.asset_class_by_suffix
 
         if not path.is_file():
             for candidate in path.parent.glob(f"{path.stem}.*"):
-                if candidate.suffix in asset_class_lookup:
+                if candidate.suffix in asset_class_by_suffix:
                     path = candidate
                     break
 
-        if path.suffix not in asset_class_lookup:
-            raise cls.NotRecognisedError(path)
+        return asset_class_by_suffix[path.suffix].load(path)
 
-        return asset_class_lookup[path.suffix](path)
+    def load_all(self, filter_fn: AssetFilter | None = None) -> None:
+        asset_class_by_suffix = self.asset_class_by_suffix
+        children = list(
+            filter(
+                filter_fn,
+                (
+                    (f, f.stat().st_size)
+                    for f in self.path.rglob("*")
+                    if f.suffix in asset_class_by_suffix
+                ),
+            )
+        )
+        self.bulk_load_started(children=children)
+        for child, _ in children:
+            if child.is_dir():
+                self.cache[child.name] = subdir = Assets(child)
+                subdir.asset_loaded.subscribe(self.asset_loaded)
+                subdir.load_all(filter_fn)
+            else:
+                self.cache[child.name] = asset = getattr(self, child.name)
+                self.asset_loaded(asset)
+        self.bulk_load_ended(children)
 
     def __getattr__(self, name: str) -> Any:
-        return getattr(self.data, name)
+        if attr := self.__dict__.get(name):
+            return attr
+
+        if asset := self.cache.get(name):
+            return asset
+
+        path = self.path / name
+
+        if path.is_dir():
+            return self.cache.setdefault(name, Assets(path))
+
+        return self.cache.setdefault(name, self.load(path))
+
+    def __getitem__(self, name: str) -> Any:
+        return getattr(self, name)
+
+
+class Asset:
+    @classmethod
+    def load(cls, path: Path) -> Any:
+        raise NotImplementedError
 
 
 class Image(Asset):
     suffixes = [".gif", ".jpg", ".png"]
 
-    def __init__(self, path: Path) -> None:
+    @classmethod
+    def load(cls, path: Path) -> pygame.Surface:
         pygame.display.init()
-        self.data = pygame.image.load(path)
+        return pygame.image.load(path)
 
 
 class Sound(Asset):
     suffixes = [".mp3", ".wav"]
 
-    def __init__(self, path: Path) -> None:
+    @classmethod
+    def load(cls, path: Path) -> pygame.mixer.Sound:
         pygame.mixer.init()
-        self.data = pygame.mixer.Sound(path)
+        return pygame.mixer.Sound(path)
 
-    def play(self, *args, **kwargs) -> None:
-        self.data.play(**kwargs)
-
-    def stop(self) -> None:
-        self.data.stop()
-
-    def set_volume(self, value: float) -> None:
-        self.data.set_volume(value)
-
-    def fadeout(self, ms: int) -> None:
-        self.data.fadeout(ms)
-
-
-class Music(Sound):
-    load = pygame.mixer.music.load
-
-    REPEAT_FOREVER = -1
-
-    def __init__(self, path: Path) -> None:
+    @classmethod
+    def stream(cls, path: Path) -> Any:
         pygame.mixer.init()
         pygame.mixer.music.load(path)
-
-    def play(self, repeat_count: int = REPEAT_FOREVER, **kwargs) -> None:
-        if not self._loaded:
-            raise Music.NotLoaded(self.filename)
-        if "loops" in kwargs:
-            repeat_count = kwargs.pop("loops")
-        pygame.mixer.music.play(loops=repeat_count, **kwargs)
+        return pygame.mixer.music
 
 
 class Font(Asset):
     suffixes = [".ttf"]
 
-    def __init__(self, path: Path, size: int = 30) -> None:
-        pygame.font.init()
-        self.path = path
+    class Font:
+        def __init__(self, path: Path) -> None:
+            self.path = path
+            self.cache = {}
 
-    @cache
-    def size(self, size: int = 30) -> pygame.font.Font:
-        return pygame.font.Font(self.path, size)
+        def size(self, size: int = 30) -> pygame.font.Font:
+            return self.cache.setdefault(
+                size,
+                pygame.font.Font(self.path, size),
+            )
+
+    @classmethod
+    def load(cls, path: Path) -> Font.Font:
+        pygame.font.init()
+        return Font.Font(path)
+
+
+class Yaml(Asset):
+    suffixes = [".yaml", ".yml"]
+
+    @classmethod
+    def load(cls, path: Path) -> Any:
+        return YAML(typ="safe").load(path)

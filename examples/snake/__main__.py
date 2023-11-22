@@ -4,7 +4,6 @@ import random
 from collections import deque
 from dataclasses import dataclass
 from dataclasses import field
-from pathlib import Path
 
 import pygame
 from pygame.sprite import Sprite
@@ -23,7 +22,7 @@ from pygskin.spritesheet import Spritesheet
 from pygskin.text import Text
 from pygskin.window import Window
 
-assets = Assets(Path(__file__).parent / "assets")
+assets = Assets()
 
 
 SNAKE_SPRITE_MAP = {
@@ -266,7 +265,7 @@ def move(snake: Snake, world: World, paused: bool, game_over: bool) -> None:
             snake.die()
 
         elif food := world.food_at(snake.head.cell):
-            snake.eat(food)
+            snake.eat()
             world.place(food)
 
         else:

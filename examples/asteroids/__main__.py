@@ -16,7 +16,6 @@ import contextlib
 import math
 import random
 from enum import IntEnum
-from pathlib import Path
 
 import pygame
 from pygame.math import Vector2
@@ -39,7 +38,7 @@ from pygskin.text import Text
 from pygskin.utils import angle_between
 from pygskin.window import Window
 
-assets = Assets(Path(__file__).parent / "assets")
+assets = Assets()
 
 
 def translate(v: Vector2) -> Vector2:
@@ -564,7 +563,7 @@ class World(ecs.Entity, pygame.sprite.Sprite):
 
     @property
     def image(self) -> pygame.Surface:
-        self.surface.blit(assets.background.data, (0, 0))
+        self.surface.blit(assets.background, (0, 0))
         for entity in ecs.Entity.instances:
             if isinstance(entity, Mob):
                 entity.draw(self.surface)
@@ -748,7 +747,7 @@ def collisions(ship: Ship, world: World) -> None:
 
 class MainMenu(Screen):
     def load(self, *_) -> None:
-        self.image.blit(assets.main_menu.data, (0, 0))
+        self.image.blit(assets.main_menu, (0, 0))
 
         prompt = Text(
             "Press SPACE to start",
@@ -788,7 +787,7 @@ class Game(Window, ScreenManager):
     def __init__(self) -> None:
         Window.__init__(self, title="Asteroids", size=(800, 800))
 
-        assets.load()
+        assets.load_all()
         assets.thrust.set_volume(0.5)
 
         self.screen = MainMenu()
