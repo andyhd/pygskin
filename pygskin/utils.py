@@ -93,3 +93,13 @@ class Decorator:
 
     def __set_name__(self, owner: Any, name: str) -> None:
         self.name = name
+
+
+def make_sprite(image: pygame.Surface, **kwargs) -> pygame.sprite.Sprite:
+    spr = pygame.sprite.Sprite()
+    scale = kwargs.pop("scale", None)
+    if scale:
+        image = pygame.transform.scale_by(image, scale)
+    spr.image = image
+    spr.rect = image.get_rect(**kwargs)
+    return spr
