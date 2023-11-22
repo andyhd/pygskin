@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from collections.abc import Iterable
+from collections.abc import Mapping
+from dataclasses import dataclass
+from dataclasses import field
 from enum import Enum
 from functools import cached_property
 
@@ -196,3 +199,51 @@ class DynamicText(ecs.Entity, Text):
             self.text = text
             del self.image
             del self.rect
+
+
+CharacterRects = Mapping[str, pygame.Rect]
+
+
+@dataclass
+class BitmapFont:
+    image: pygame.Surface
+    character_rects: CharacterRects = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        self.bold = False
+        self.italic = False
+        self.underline = False
+        if not self.character_rects:
+            # assume monospaced chars in a single row
+            ascii_printable = [chr(i) for i in range(32, 126)]
+            w, h = self.image.get_rect().size
+            cw = w / len(ascii_printable)
+            self.character_rects = [
+                pygame.Rect(x * cw, 0, cw, h)
+                for x, _ in enumerate(ascii_printable)
+            ]
+
+    def __getitem__(self, key: str) -> pygame.Surface:
+        return self.image.subsurface(self.character_rects[key])
+
+    def size(self, string: str) -> tuple[int, int]:
+        width, height = (0, 0)
+        for char in string:
+            rect = self.character_rects[char]
+            width += rect.width
+            height = max(height, rect.height)
+        return width, height
+
+    def get_linesize(self) -> float:
+        return 1.2
+
+    def render(self, string: str, *args) -> pygame.Surface:
+        surface = pygame.Surface(self.size(string)).convert_alpha()
+        surface.fill((0, 0, 0, 0))
+        x = 0
+        for char in string:
+            char_img = self[char]
+            rect = char_img.get_rect(x=x)
+            surface.blit(char_img, rect)
+            x = rect.right
+        return surface
