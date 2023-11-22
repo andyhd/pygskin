@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Callable
+from functools import partial
 from typing import Any
 from typing import ClassVar
 from typing import get_type_hints
@@ -48,7 +49,11 @@ class System(Decorator):
     def set_function(self, fn: Callable) -> None:
         super().set_function(fn)
 
-        hints = get_type_hints(fn)
+        if isinstance(fn, partial):
+            hints = get_type_hints(fn.func)
+        else:
+            hints = get_type_hints(fn)
+
         self.entity_class = next(iter(hints.values()))
 
 
