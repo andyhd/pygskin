@@ -1,5 +1,8 @@
 """Easing functions."""
 import math
+from collections.abc import Callable
+
+EasingFunction = Callable[[float], float]
 
 
 def sine_in(x: float) -> float:
@@ -15,7 +18,7 @@ def sine_in_out(x: float) -> float:
 
 
 def cubic_in(x: float) -> float:
-    return x ** 3
+    return x**3
 
 
 def cubic_out(x: float) -> float:
@@ -23,7 +26,7 @@ def cubic_out(x: float) -> float:
 
 
 def cubic_in_out(x: float) -> float:
-    return 4 * x ** 3 if x < 0.5 else 1 - (-2 * x + 2) ** 3 / 2
+    return 4 * x**3 if x < 0.5 else 1 - (-2 * x + 2) ** 3 / 2
 
 
 def expo_in(x: float) -> float:
@@ -48,15 +51,15 @@ def bounce_out(x: float) -> float:
     n1 = 7.5625
     d1 = 2.75
     if x < 1 / d1:
-        return n1 * x ** 2
+        return n1 * x**2
     if x < 2 / d1:
         x -= 1.5 / d1
-        return n1 * x ** 2 + 0.75
+        return n1 * x**2 + 0.75
     if x < 2.5 / d1:
         x -= 2.25 / d1
-        return n1 * x ** 2 + 0.9375
+        return n1 * x**2 + 0.9375
     x -= 2.625 / d1
-    return n1 * x ** 2 + 0.984375
+    return n1 * x**2 + 0.984375
 
 
 def bounce_in_out(x: float) -> float:

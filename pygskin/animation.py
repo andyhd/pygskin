@@ -1,18 +1,18 @@
-from __future__ import annotations
-
-from collections.abc import Callable
 from dataclasses import dataclass
-from dataclasses import field
+from operator import itemgetter
+from typing import Iterator
+from typing import Mapping
 from typing import Protocol
 from typing import TypeVar
 from typing import runtime_checkable
 
 from pygskin import ecs
 from pygskin.clock import on_tick
+from pygskin.easing import EasingFunction
 from pygskin.pubsub import message
 
-Timestamp = int | float
 Frame = TypeVar("Frame")
+Keyframes = Mapping[float, Frame | tuple[Frame, EasingFunction]]
 
 
 @runtime_checkable
@@ -29,77 +29,59 @@ class Lerpable(Protocol[Frame]):
         ...
 
 
-EasingFunction = Callable[[float], float]
+class Animation(Protocol):
+    duration: float
+
+    def frame_at(self, index: float) -> Frame:
+        ...
 
 
 @dataclass
-class Animation(ecs.Entity):
+class KeyframeAnimation(Animation):
     """
-    An Animation is a map of timestamps to key Frames.
+    Mapping of indexes to key Frames.
 
-    >>> anim = Animation({
+    >>> anim = KeyframeAnimation({
     ...     0: {"x": 2},
     ...     1: {"x": 8},
     ...     2: {"x": 3},
     ... })
-    >>> anim.at(0)
+    >>> anim.frame_at(0)
     {'x': 2.0}
-    >>> anim.at(0.5)
+    >>> anim.frame_at(0.5)
     {'x': 5.0}
-    >>> anim.at(1)
+    >>> anim.frame_at(1)
     {'x': 8.0}
-    >>> anim.at(1.5)
+    >>> anim.frame_at(1.5)
     {'x': 5.5}
     """
 
-    keyframes: dict[Timestamp, Frame]
-    easing: dict[Timestamp, EasingFunction] = field(default_factory=dict)
-    lerp_fn: Callable | None = None
-    loops: float = 0.0  # float to allow math.inf
+    keyframes: Keyframes
 
     def __post_init__(self) -> None:
-        """Ensure keyframes are sorted by timestamp."""
-        ecs.Entity.__init__(self)
-        self.max_timestamp = 0
-        sorted_keyframes = {}
-        sorted_easing_fns = {}
-        for timestamp in sorted(self.keyframes):
-            self.max_timestamp = max(self.max_timestamp, timestamp)
-            sorted_keyframes[timestamp] = self.keyframes[timestamp]
-            easing_fn = self.easing.get(timestamp)
-            if easing_fn:
-                sorted_easing_fns[timestamp] = easing_fn
-        self.keyframes = sorted_keyframes
-        self.easing = sorted_easing_fns
-        self.running = False
-        self.ended = False
-        self.max_loops = self.loops
-        self.frame_changed = message()
+        self.keyframes, self.duration = self._sort_keyframes()
+        self.lerp_fn = self._lerp
 
-    def reset(self) -> None:
-        """Reset the animation."""
-        self.timer = 0
-        self.running = False
-        self.ended = False
-        self.loops = self.max_loops
+    def _sort_keyframes(self) -> tuple[Keyframes, float]:
+        max_index = 0
+        keyframes = {}
+        for index, frame in sorted(self.keyframes.items(), key=itemgetter(0)):
+            max_index = max(index, max_index)
+            easing = None
+            if isinstance(frame, tuple) and len(frame) == 2 and callable(frame[1]):
+                frame, easing = frame
+            keyframes[index] = (frame, easing)
+        return keyframes, max_index
 
-    def current_frame(self) -> Frame:
-        """Get the animation frame at the current timestamp."""
-        return self.at(self.timer)
+    def frame_at(self, index: float) -> Frame:
+        start = end = easing = None
 
-    def at(self, timestamp: Timestamp) -> Frame:
-        """Get the animation frame at the specified timestamp."""
-        start = None
-        end = None
-        easing = None
-
-        for ts, frame in self.keyframes.items():
-            if ts <= timestamp:
-                start, start_frame = ts, frame
-                easing = self.easing.get(ts)
+        for i, (frame, fn) in self.keyframes.items():
+            if i <= index:
+                start, start_frame, easing = i, frame, fn
                 continue
-            if ts >= timestamp:
-                end, end_frame = ts, frame
+            if i >= index:
+                end, end_frame, easing = i, frame, fn
                 break
 
         if start is None:
@@ -109,53 +91,86 @@ class Animation(ecs.Entity):
             return start_frame
 
         duration = end - start
-        progress = (timestamp - start) / duration
+        progress = (index - start) / duration
 
         if easing:
             progress = easing(progress)
 
         return self.lerp(start_frame, end_frame, progress)
 
+    def __getitem__(self, index: float) -> Frame:
+        return self.frame_at(index)
+
     def lerp(self, start: Frame, end: Frame, quotient: float) -> Frame:
-        """Linear interpolation between frame values."""
-        if self.lerp_fn:
-            return self.lerp_fn(start, end, quotient)
+        return self.lerp_fn(start, end, quotient)
+
+    def _lerp(self, start: Frame, end: Frame, quotient: float) -> Frame:
         if isinstance(start, dict):
             return {
-                key: self.lerp(val, end[key], quotient) for key, val in start.items()
+                key: self._lerp(val, end[key], quotient) for key, val in start.items()
             }
+
         if hasattr(start, "lerp"):
             return start.lerp(end, quotient)
-        elif isinstance(start, Lerpable):
+
+        if isinstance(start, Lerpable):
             return start + quotient * (end - start)
+
         return start
 
+
+@dataclass
+class AnimationPlayer(ecs.Entity):
+    animation: Animation
+    loops: float = 0.0  # float allows math.inf
+
+    def __post_init__(self) -> None:
+        ecs.Entity.__init__(self)
+        self._loops = self.loops
+        self.reset()
+
+    def reset(self) -> None:
+        self.ticks = 0
+        self.started = False
+        self.running = False
+        self.ended = False
+
     def start(self) -> None:
-        """Start the animation."""
-        if not self.running and not self.ended:
-            self.timer = 0
+        if not self.started:
+            self.started = True
             self.running = True
 
-    def loop(self) -> None:
-        """Restart the animation from the beginning."""
-        self.loops -= 1
-        self.timer = 0
+    def pause(self) -> None:
+        if self.started and not self.ended:
+            self.running = False
+
+    def resume(self) -> None:
+        if self.started and not self.ended:
+            self.running = True
 
     @message
-    def end(self) -> None:
-        """Notify subscribers that the animation has ended."""
-        self.running = False
-        self.ended = True
-        self.timer = 0
+    def stop(self) -> None:
+        if not self.ended:
+            self.running = False
+            self.ended = True
 
     @on_tick
-    def update(self, dt: int, **kwargs) -> None:
-        """Update the animation."""
-        if self.running and not self.ended:
-            self.timer += dt
-            self.frame_changed(self.current_frame())
-            if self.timer >= self.max_timestamp:
-                if self.loops:
-                    self.loop()
+    def update(self, dt: int, **_) -> None:
+        if self.running:
+            if self.ticks >= self.animation.duration:
+                if self._loops > 0:
+                    self._loops -= 1
+                    self.reset()
+                    self.start()
                 else:
-                    self.end()
+                    self.stop()
+            self.ticks += dt
+
+    @property
+    def current_frame(self) -> Frame:
+        return self.animation.frame_at(self.ticks)
+
+    def frames(self) -> Iterator[Frame]:
+        self.start()
+        while not self.ended:
+            yield self.animation.current_frame

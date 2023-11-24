@@ -21,7 +21,8 @@ import pygame
 from pygame.math import Vector2
 
 from pygskin import ecs
-from pygskin.animation import Animation
+from pygskin.animation_new import AnimationPlayer
+from pygskin.animation_new import KeyframeAnimation
 from pygskin.assets import Assets
 from pygskin.clock import Clock
 from pygskin.clock import Timer
@@ -281,13 +282,13 @@ class Explosion(Mob):
     colour: str = "orange"
 
     def __init__(self, **kwargs) -> None:
-        self.anim_radius = Animation({0: 0.0, 200: 1.0})
-        self.anim_radius.end.subscribe(self.kill)
+        self.anim_radius = AnimationPlayer(KeyframeAnimation({0: 0.0, 200: 1.0}))
+        self.anim_radius.stop.subscribe(self.kill)
         self.anim_radius.start()
         super().__init__(**kwargs)
 
     def draw(self, surface: pygame.Surface) -> None:
-        radius = self.anim_radius.current_frame() * self.radius
+        radius = self.anim_radius.current_frame * self.radius
         for i in range(2):
             self.draw_circle(surface, radius=radius + i * random.uniform(0.0, 0.00375))
 
