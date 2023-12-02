@@ -13,8 +13,12 @@ from pygame.math import Vector2
 WORD_START = re.compile(r"(?<!^)(?=[A-Z])")
 
 
-def to_snake_case(s):
-    return WORD_START.sub("_", s).lower()
+def to_snakecase(string: str):
+    return WORD_START.sub("_", string).lower()
+
+
+def snakecase_to_capwords(snakecase: str) -> str:
+    return "".join(word.capitalize() for word in snakecase.split("_"))
 
 
 def rotate(

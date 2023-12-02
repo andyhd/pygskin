@@ -19,6 +19,7 @@ from pygskin.utils import Decorator
 class Event:
     TYPE_MAP: ClassVar[dict[int, type[Event]]] = {}
     event_type: ClassVar[int | None] = None
+    cancelable: ClassVar[bool] = True
 
     @overload
     def __init__(self, event: pygame.event.Event) -> None:
@@ -44,6 +45,7 @@ class Event:
                 self.metadata = kwargs
 
         self.__dict__.update(self.metadata)
+        self.cancelled = False
 
     def __init_subclass__(cls, **kwargs) -> None:
         if event_type := kwargs.get("event_type"):
@@ -57,6 +59,10 @@ class Event:
             if "build" in cls.__dict__:
                 return event_class.build(event)
             return event_class(event)
+
+    def cancel(self) -> None:
+        if self.cancelable:
+            self.cancelled = True
 
     def post(self) -> bool:
         return pygame.event.post(
@@ -187,5 +193,8 @@ class EventSystem(ecs.System):
     @classmethod
     def update_entity(cls, entity: ecs.Entity, **kwargs) -> None:
         for attr, value in inspect.getmembers(entity):
+            event = kwargs["event"]
+            if event and event.cancelled:
+                break
             if isinstance(value, EventListener):
-                getattr(entity, attr)(kwargs["event"])
+                getattr(entity, attr)(event)

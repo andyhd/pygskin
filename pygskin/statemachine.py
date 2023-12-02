@@ -65,6 +65,7 @@ class StateMachine:
         self.received_input = message()
         self.triggered = message()
         self.not_triggered = message()
+        self.state_changed = message()
         self._statemachine = self._coro()
         next(self._statemachine)
 
@@ -72,13 +73,15 @@ class StateMachine:
         self.started()
         if self.state is None:
             self.state = next(iter(self.transition_table))
-        while self.state:
+            self.state_changed()
+        while self.state is not None:
             input = yield self.state
             self.received_input(input)
             for transition in self.transition_table[self.state]:
                 if next_state := transition(input):
-                    self.triggered(input, self.state, next_state)
+                    self.triggered(self.state, transition, input, next_state)
                     self.state = next_state
+                    self.state_changed()
                     break
             else:
                 self.not_triggered(input, self.state)
