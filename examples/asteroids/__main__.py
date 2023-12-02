@@ -21,8 +21,8 @@ import pygame
 from pygame.math import Vector2
 
 from pygskin import ecs
-from pygskin.animation_new import AnimationPlayer
-from pygskin.animation_new import KeyframeAnimation
+from pygskin.animation import AnimationPlayer
+from pygskin.animation import KeyframeAnimation
 from pygskin.assets import Assets
 from pygskin.clock import Clock
 from pygskin.clock import Timer
