@@ -5,7 +5,7 @@ from pygskin.assets import Assets
 from pygskin.dialogue import Dialogue
 from pygskin.dialogue import OptionSelected
 from pygskin.display import Display
-from pygskin.events import CustomEvent
+from pygskin.events import Event
 from pygskin.events import KeyDown
 from pygskin.events import MouseButtonDown
 from pygskin.events import MouseMotion
@@ -82,11 +82,11 @@ class Game(Window):
         self.dialogue.update()
 
 
-class MouseEnter(CustomEvent):
+class MouseEnter(Event):
     pass
 
 
-class MouseExit(CustomEvent):
+class MouseExit(Event):
     pass
 
 

@@ -9,7 +9,7 @@ from typing import Any
 from typing import TypedDict
 
 from pygskin.clock import Timer
-from pygskin.events import CustomEvent
+from pygskin.events import Event
 from pygskin.events import event_listener
 from pygskin.pubsub import message
 from pygskin.statemachine import StateMachine
@@ -241,7 +241,7 @@ class NextState(Action):
 Option = TypedDict("Option", {"value": str, "text": str, "if": str})
 
 
-class OptionSelected(CustomEvent):
+class OptionSelected(Event):
     pass
 
 
