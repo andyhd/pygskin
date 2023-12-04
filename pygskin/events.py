@@ -48,9 +48,11 @@ class Event:
         self.cancelled = False
 
     def __init_subclass__(cls, **kwargs) -> None:
-        if event_type := kwargs.get("event_type"):
-            cls.event_type = int(event_type)
-            Event.TYPE_MAP[cls.event_type] = cls
+        _type = kwargs.get("event_type")
+
+        cls.event_type = int(_type) if _type is not None else pygame.event.custom_type()
+
+        Event.TYPE_MAP[cls.event_type] = cls
 
     @classmethod
     def build(cls, event: pygame.event.Event) -> Event | None:
@@ -128,12 +130,6 @@ class MouseMotion(Event, event_type=pygame.MOUSEMOTION):
 
 class Quit(Event, event_type=pygame.QUIT):
     pass
-
-
-class CustomEvent(Event):
-    def __init_subclass__(cls, **kwargs) -> None:
-        cls.event_type = pygame.event.custom_type()
-        super().__init_subclass__(event_type=cls.event_type)
 
 
 class EventListener(Decorator):
