@@ -159,6 +159,8 @@ class Action:
         match data:
             case {"animation": str(animation)}:
                 return Animate(*args, *[name, animation])
+            case {"text": str()} as line:
+                return Say(*args, *[name, line])
             case str(line):
                 return Say(*args, *[name, line])
             case _:
@@ -200,10 +202,15 @@ class Timed:
 @dataclass
 class Say(Timed, Action):
     actor: str
-    line: str
+    line: str | dict
+    duration: float | None = None
 
     def __post_init__(self) -> None:
-        self.duration = len(self.line.split()) / 3.3
+        if isinstance(self.line, dict):
+            self.duration = self.line.get("duration", None)
+            self.line = self.line["text"]
+        if self.duration is None:
+            self.duration = max(len(self.line.split()) / 3.3)
 
     def __str__(self) -> str:
         return self.line
