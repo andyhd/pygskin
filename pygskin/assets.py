@@ -10,7 +10,6 @@ from ruamel.yaml import YAML
 
 from pygskin.pubsub import message
 
-
 AssetFilter = Callable[[Path], bool]
 
 
@@ -126,11 +125,11 @@ class Image(Asset):
     @classmethod
     def load(cls, path: Path) -> pygame.Surface:
         pygame.display.init()
-        return pygame.image.load(path)
+        return pygame.image.load(path).convert_alpha()
 
 
 class Sound(Asset):
-    suffixes = [".mp3", ".wav"]
+    suffixes = [".mp3", ".wav", ".ogg"]
 
     @classmethod
     def load(cls, path: Path) -> pygame.mixer.Sound:

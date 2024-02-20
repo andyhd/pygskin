@@ -19,7 +19,12 @@ class Screen(pygame.sprite.Sprite, ecs.Entity, ecs.Container):
         ecs.Entity.__init__(self)
 
         self.rect = Display.rect
-        self.image = pygame.Surface(self.rect.size).convert_alpha()
+
+    @property
+    def image(self) -> pygame.Surface:
+        if not hasattr(self, "_image"):
+            self._image = pygame.Surface(self.rect.size).convert_alpha()
+        return self._image
 
     def load(self, state: dict) -> None:
         pass
@@ -28,7 +33,7 @@ class Screen(pygame.sprite.Sprite, ecs.Entity, ecs.Container):
         pass
 
     @message
-    def exit(self, *args) -> None:
+    def exit(self, *args, **kwargs) -> None:
         self.unload()
         self.kill()
         ecs.Entity.instances.remove(self)

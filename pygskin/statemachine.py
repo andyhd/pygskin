@@ -72,19 +72,21 @@ class StateMachine:
     def _coro(self) -> Iterator[State | None]:
         self.started()
         if self.state is None:
-            self.state = next(iter(self.transition_table))
-            self.state_changed()
+            self.set_state(next(iter(self.transition_table)))
         while self.state is not None:
             input = yield self.state
             self.received_input(input)
             for transition in self.transition_table[self.state]:
                 if next_state := transition(input):
                     self.triggered(self.state, transition, input, next_state)
-                    self.state = next_state
-                    self.state_changed()
+                    self.set_state(next_state)
                     break
             else:
                 self.not_triggered(input, self.state)
+
+    def set_state(self, state: State) -> None:
+        self.state = state
+        self.state_changed()
 
     def send(self, input: Input) -> State | None:
         return self._statemachine.send(input)
