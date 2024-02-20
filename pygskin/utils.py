@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import functools
 import math
 import re
 from collections.abc import Callable
-from collections.abc import Iterable
 from typing import Any
+from typing import Iterable
 from typing import Self
 from typing import overload
 
@@ -99,11 +101,58 @@ class Decorator:
         self.name = name
 
 
-def make_sprite(image: pygame.Surface, **kwargs) -> pygame.sprite.Sprite:
+def make_sprite(image: pygame.surface.Surface, **kw) -> pygame.sprite.Sprite:
+    """Make a sprite object from a Surface."""
     spr = pygame.sprite.Sprite()
-    scale = kwargs.pop("scale", None)
-    if scale:
+    if bg_color := kw.pop("bg_color", None):
+        image.fill(bg_color)
+    if scale := kw.pop("scale", None):
         image = pygame.transform.scale_by(image, scale)
     spr.image = image
-    spr.rect = image.get_rect(**kwargs)
+    spr.rect = image.get_rect(**kw)
     return spr
+
+
+class Padding:
+    def __init__(self, padding: int | Iterable[int] = 0) -> None:
+        self.default = padding
+        if isinstance(padding, int):
+            self.top = self.right = self.bottom = self.left = padding
+
+        else:
+            try:
+                padding = iter(padding)
+                self.top = self.right = self.bottom = self.left = next(padding)
+                self.right = self.left = next(padding)
+                self.bottom = next(padding)
+                self.left = next(padding)
+            except StopIteration:
+                pass
+
+    def __repr__(self) -> str:
+        return (
+            f"<{self.__class__.__name__} top={self.top}, right={self.right}, "
+            f"bottom={self.bottom}, left={self.left}>"
+        )
+
+    def __iter__(self) -> Iterable[int]:
+        yield from [self.top, self.right, self.bottom, self.left]
+
+    def __set_name__(self, _, name: str) -> None:
+        self._name = f"_{name}"
+
+    def __get__(self, obj, type) -> Padding:
+        if obj is None:
+            return self
+        return getattr(obj, self._name, Padding(padding=self.default))
+
+    def __set__(self, obj, value) -> None:
+        setattr(obj, self._name, Padding(padding=value))
+
+    @property
+    def width(self) -> int:
+        return self.left + self.right
+
+    @property
+    def height(self) -> int:
+        return self.top + self.bottom

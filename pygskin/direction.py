@@ -28,3 +28,6 @@ class Direction(IntFlag):
             self.LEFT: Vector2(-1, 0),
             self.RIGHT: Vector2(1, 0),
         }[self]
+
+    def __repr__(self) -> str:
+        return f"<{self.name}>"

@@ -2,7 +2,6 @@
 Asteroids
 
 TODO:
-    - title screen
     - high score table
     - small ufo: aiming gets better as score increases, 1000pts, appears after 10,000pts
     - bug: unpausing activates shield

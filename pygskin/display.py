@@ -11,10 +11,13 @@ class Display(ecs.System):
 
     def __init__(self, **options) -> None:
         Display.rect = pygame.Rect((0, 0), options.setdefault("size", (800, 600)))
-        Display.surface = pygame.display.set_mode(
-            Display.rect.size,
-            options.setdefault("flags", 0),
-        )
+        if surface := pygame.display.get_surface():
+            Display.surface = surface
+        else:
+            Display.surface = pygame.display.set_mode(
+                Display.rect.size,
+                options.setdefault("flags", 0),
+            )
         Display.surface.convert_alpha()
         Display.set_caption(options.setdefault("title", "pygame window"))
         Display.options = options
