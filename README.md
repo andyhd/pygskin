@@ -50,6 +50,12 @@ Generate horizontal or vertical gradient filled surfaces
 ## `grid.py`
 Utility class for grids.
 
+## gui.py
+GUI widgets
+
+## layout.py
+GUI layout algorithms
+
 ## `parallax.py`
 Parallax scrolling
 TODO - Use LayeredUpdates
