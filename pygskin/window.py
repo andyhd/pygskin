@@ -7,9 +7,6 @@ import pygame
 from pygskin import ecs
 from pygskin.clock import Clock
 from pygskin.display import Display
-from pygskin.events import EventSystem
-from pygskin.events import Quit
-from pygskin.events import event_listener
 
 
 class Window(ecs.Entity, ecs.Container):
@@ -21,18 +18,18 @@ class Window(ecs.Entity, ecs.Container):
             [
                 Display(**config),
                 Clock(**config),
-                EventSystem(),
             ]
         )
-
-    @event_listener
-    def quit(self, _: Quit) -> None:
-        self.running = False
 
     async def main_loop(self) -> None:
         self.running = True
         while self.running:
-            self.update()
+            events = list(pygame.event.get())
+
+            if any(event.type == pygame.QUIT for event in events):
+                self.running = False
+
+            self.update(events=events)
             await asyncio.sleep(0)
         pygame.quit()
 
