@@ -1,109 +1,68 @@
 from __future__ import annotations
 
 import inspect
-from collections.abc import Callable
+import typing
 from typing import Any
 
 import pygame
+from pygame.event import Event
 
-from pygskin import ecs
-from pygskin.display import Display
-from pygskin.pubsub import message
 from pygskin.statemachine import StateMachine
-from pygskin.utils import Decorator
+from pygskin.statemachine import TransitionTable
 
 
-class Screen(pygame.sprite.Sprite, ecs.Entity, ecs.Container):
-    def __init__(self) -> None:
-        pygame.sprite.Sprite.__init__(self, Display.sprites)
-        ecs.Entity.__init__(self)
+class Screen:
+    def __init__(self, manager: ScreenManager) -> None:
+        self.manager = manager
+        self.setup()
 
-        self.rect = Display.rect
+    def exit(self, output: Any = None) -> None:
+        self.manager.show_next(output)
 
-    @property
-    def image(self) -> pygame.Surface:
-        if not hasattr(self, "_image"):
-            self._image = pygame.Surface(self.rect.size).convert_alpha()
-        return self._image
+    def setup(self) -> None:
+        ...
 
-    def load(self, state: dict) -> None:
-        pass
+    def update(self, events: list[Event]) -> None:
+        ...
 
-    def unload(self) -> None:
-        pass
-
-    @message
-    def exit(self, *args, **kwargs) -> None:
-        self.unload()
-        self.kill()
-        ecs.Entity.instances.remove(self)
-
-    def update(self, **kwargs) -> None:
-        ecs.Container.update(self, **kwargs)
-
-    @classmethod
-    def transition(cls, fn: Callable) -> ScreenTransition:
-        transition = ScreenTransition()
-        transition.set_args(cls)
-        transition.set_function(fn)
-        return transition
+    def draw(self, surface: pygame.Surface) -> None:
+        ...
 
 
 class ScreenManager:
-    def update(self) -> None:
-        self.screen.update()
+    def __init__(self, initial: type[Screen]) -> None:
+        self.initial = initial
 
-    def _initialise_statemachine(self) -> None:
-        transition_table = {}
+        transition_table = TransitionTable[type[Screen]]()
+        screens = [initial]
 
-        def is_transition(attr):
-            return isinstance(attr, ScreenTransition)
+        while screens:
+            screen = screens.pop()
+            for _, attr in inspect.getmembers(screen, callable):
+                if (
+                    (type_hints := typing.get_type_hints(attr, include_extras=True))
+                    and (type_hint := type_hints.get("return"))
+                    and typing.get_origin(type_hint) is type
+                    and (screen_type := next(iter(typing.get_args(type_hint)), None))
+                    and issubclass(screen_type, Screen)
+                ):
+                    transition_table.setdefault(screen, []).append(attr)
+                    if not any(
+                        key.__name__ == screen_type.__name__ for key in transition_table
+                    ):
+                        screens.append(screen_type)
 
-        for name, transition in inspect.getmembers_static(self, is_transition):
-            transition_table.setdefault(transition.screen_class, []).append(
-                getattr(self, name)
-            )
+        self.statemachine = StateMachine[type[Screen]](transition_table)
+        self.screen = self.initial(self)
 
-        self._statemachine = StateMachine(transition_table)
+    def update(self, events: list[Event]) -> None:
+        self.screen.update(events)
 
-    @property
-    def screen(self) -> Screen:
-        return self._screen
+    def draw(self, surface: pygame.Surface) -> None:
+        self.screen.draw(surface)
 
-    @screen.setter
-    def screen(self, screen: Screen) -> None:
-        if not hasattr(self, "_screen"):
-            self._initialise_statemachine()
-        self._screen = screen
-        self._statemachine.state = screen.__class__
-        screen.load(self.state)
-        screen.exit.subscribe(self.next_screen)
-
-    @property
-    def state(self) -> dict:
-        if not hasattr(self, "_state"):
-            self._state = {}
-        return self._state
-
-    @state.setter
-    def state(self, value: dict) -> None:
-        self._state = value
-
-    def next_screen(self, *args) -> None:
-        self.state["output"] = args
-        self._statemachine.send(self.state)
-
-
-class ScreenTransition(Decorator):
-    def set_args(self, *args, **kwargs) -> None:
-        super().set_args(*args, **kwargs)
-        if args and issubclass(args[0], Screen):
-            self.screen_class = args[0]
-
-    def call_function(self, *args) -> Any:
-        if next_screen := super().call_function():
-            self.obj.screen = next_screen
-            return next_screen.__class__
-
-
-screen_transition = ScreenTransition
+    def show_next(self, output: object | None = None) -> None:
+        self.statemachine.send(output)
+        next_screen = self.statemachine.state
+        if next_screen is not None and next_screen != self.screen.__class__:
+            self.screen = next_screen(self)

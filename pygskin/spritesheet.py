@@ -27,8 +27,8 @@ class Spritesheet:
 
     @cache
     def __getitem__(self, key: str | Coord) -> pygame.Surface:
-        if isinstance(key, str) and (image := self.name_map[key]):
-            return image
+        if isinstance(key, str) and (coord := self.name_map[key]):
+            return self[coord]
 
         if isinstance(key, tuple):
             grid_width, grid_height = self.grid
@@ -45,6 +45,6 @@ class Spritesheet:
                 // self.grid,
             )
 
-            return self.image.subsurface(cell_size.elementwise() * key)
+            return self.image.subsurface((cell_size.elementwise() * key, cell_size))
 
         raise KeyError

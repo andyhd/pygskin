@@ -10,9 +10,6 @@ from functools import cached_property
 
 import pygame
 
-from pygskin import ecs
-from pygskin.clock import on_tick
-
 
 class Align(Enum):
     LEFT = 0
@@ -66,7 +63,6 @@ class Text(pygame.sprite.Sprite):
 
     @cached_property
     def image(self) -> pygame.Surface:
-
         # render lines
         images = []
         rects = []
@@ -186,19 +182,19 @@ def pad(
     return (width, height), (pad_left, pad_top)
 
 
-class DynamicText(ecs.Entity, Text):
-    def __init__(self, fn: Callable, **config) -> None:
-        ecs.Entity.__init__(self)
-        Text.__init__(self, fn(), **config)
-        self.fn = fn
+# class DynamicText(ecs.Entity, Text):
+#     def __init__(self, fn: Callable, **config) -> None:
+#         ecs.Entity.__init__(self)
+#         Text.__init__(self, fn(), **config)
+#         self.fn = fn
 
-    @on_tick
-    def update(self, *_, **__) -> None:
-        text = self.fn()
-        if text != self.text:
-            self.text = text
-            del self.image
-            del self.rect
+#     @on_tick
+#     def update(self, *_, **__) -> None:
+#         text = self.fn()
+#         if text != self.text:
+#             self.text = text
+#             del self.image
+#             del self.rect
 
 
 CharacterRects = Mapping[str, pygame.Rect]
@@ -219,8 +215,7 @@ class BitmapFont:
             w, h = self.image.get_rect().size
             cw = w / len(ascii_printable)
             self.character_rects = [
-                pygame.Rect(x * cw, 0, cw, h)
-                for x, _ in enumerate(ascii_printable)
+                pygame.Rect(x * cw, 0, cw, h) for x, _ in enumerate(ascii_printable)
             ]
 
     def __getitem__(self, key: str) -> pygame.Surface:

@@ -1,18 +1,26 @@
 from dataclasses import dataclass
 from operator import itemgetter
-from typing import Iterator
+from typing import Any
 from typing import Mapping
 from typing import Protocol
 from typing import TypeVar
 from typing import runtime_checkable
 
-from pygskin import ecs
-from pygskin.clock import on_tick
+import pygame
+
 from pygskin.easing import EasingFunction
-from pygskin.pubsub import message
+from pygskin.statemachine import StateMachine
 
 Frame = TypeVar("Frame")
 Keyframes = Mapping[float, Frame | tuple[Frame, EasingFunction]]
+
+
+@runtime_checkable
+class HasLerp(Protocol[Frame]):
+    """Provides a lerp method."""
+
+    def lerp(self: Frame, other: Frame, quotient: float) -> Frame:
+        ...
 
 
 @runtime_checkable
@@ -32,7 +40,7 @@ class Lerpable(Protocol[Frame]):
 class Animation(Protocol):
     duration: float
 
-    def frame_at(self, index: float) -> Frame:
+    def frame_at(self, index: float) -> Any:
         ...
 
 
@@ -63,7 +71,7 @@ class KeyframeAnimation(Animation):
         self.lerp_fn = self._lerp
 
     def _sort_keyframes(self) -> tuple[Keyframes, float]:
-        max_index = 0
+        max_index = 0.0
         keyframes = {}
         for index, frame in sorted(self.keyframes.items(), key=itemgetter(0)):
             max_index = max(index, max_index)
@@ -73,7 +81,7 @@ class KeyframeAnimation(Animation):
             keyframes[index] = (frame, easing)
         return keyframes, max_index
 
-    def frame_at(self, index: float) -> Frame:
+    def frame_at(self, index: float) -> Any:
         start = end = easing = None
 
         for i, (frame, fn) in self.keyframes.items():
@@ -98,19 +106,19 @@ class KeyframeAnimation(Animation):
 
         return self.lerp(start_frame, end_frame, progress)
 
-    def __getitem__(self, index: float) -> Frame:
+    def __getitem__(self, index: float) -> Any:
         return self.frame_at(index)
 
-    def lerp(self, start: Frame, end: Frame, quotient: float) -> Frame:
+    def lerp(self, start: Any, end: Any, quotient: float) -> Any:
         return self.lerp_fn(start, end, quotient)
 
-    def _lerp(self, start: Frame, end: Frame, quotient: float) -> Frame:
+    def _lerp(self, start: Any, end: Any, quotient: float) -> Any:
         if isinstance(start, dict):
             return {
                 key: self._lerp(val, end[key], quotient) for key, val in start.items()
             }
 
-        if hasattr(start, "lerp"):
+        if isinstance(start, HasLerp):
             return start.lerp(end, quotient)
 
         if isinstance(start, Lerpable):
@@ -119,58 +127,67 @@ class KeyframeAnimation(Animation):
         return start
 
 
-@dataclass
-class AnimationPlayer(ecs.Entity):
-    animation: Animation
-    loops: float = 0.0  # float allows math.inf
-
-    def __post_init__(self) -> None:
-        ecs.Entity.__init__(self)
-        self._loops = self.loops
-        self.reset()
-
-    def reset(self) -> None:
-        self.ticks = 0
-        self.started = False
-        self.running = False
-        self.ended = False
-
-    def start(self) -> None:
-        if not self.started:
-            self.started = True
-            self.running = True
-
-    def pause(self) -> None:
-        if self.started and not self.ended:
-            self.running = False
-
-    def resume(self) -> None:
-        if self.started and not self.ended:
-            self.running = True
-
-    @message
-    def stop(self) -> None:
-        if not self.ended:
-            self.running = False
-            self.ended = True
-
-    @on_tick
-    def update(self, dt: int, **_) -> None:
-        if self.running:
-            if self.ticks >= self.animation.duration:
-                if self._loops > 0:
-                    self._loops -= 1
-                    self.reset()
-                    self.start()
-                else:
-                    self.stop()
-            self.ticks += dt
+class Player:
+    def __init__(self, animation: Animation, loops: float = 0) -> None:
+        self._statemachine = StateMachine(
+            {
+                "not started": [self.start],
+                "running": [self.pause, self.stop],
+                "paused": [self.resume, self.stop],
+                "stopped": [self.loop],
+            }
+        )
+        self._elapsed: float = 0
+        self._start_ticks: float = 0
+        self.animation = animation
+        self.duration: float = animation.duration
+        self.loops: float = loops or 0
 
     @property
-    def current_frame(self) -> Frame:
-        return self.animation.frame_at(self.ticks)
+    def current_frame(self) -> Any:
+        self.send(None)
+        return self.animation.frame_at(self.elapsed)
 
-    def frames(self) -> Iterator[Frame]:
-        self.start()
-        while not self.ended:
-            yield self.animation.current_frame
+    @property
+    def elapsed(self) -> float:
+        match self._statemachine.state:
+            case "stopped":
+                return self.duration
+            case "paused":
+                return self._elapsed
+            case "running":
+                return pygame.time.get_ticks() - self._start_ticks
+        return 0
+
+    def send(self, input_: str | None) -> None:
+        self._statemachine.send(input_)
+
+    def start(self, input_: str | None, *_) -> str | None:
+        if input_ == "start":
+            self._start_ticks = pygame.time.get_ticks()
+            return "running"
+        return None
+
+    def pause(self, input_: str | None) -> str | None:
+        if input_ == "pause":
+            self._elapsed = self.elapsed
+            return "paused"
+        return None
+
+    def resume(self, input_: str | None) -> str | None:
+        if input_ == "resume":
+            self._start_ticks = pygame.time.get_ticks() - self._elapsed
+            return "running"
+        return None
+
+    def stop(self, input_: str | None) -> str | None:
+        if input_ == "stop" or self.elapsed >= self.duration:
+            return "stopped"
+        return None
+
+    def loop(self, *_) -> str | None:
+        if self.loops > 0:
+            self.loops -= 1
+            self._elapsed = 0
+            return self.resume("resume")
+        return None

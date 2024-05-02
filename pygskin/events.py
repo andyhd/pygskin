@@ -29,13 +29,11 @@ def handles_event(event) -> typing.Callable[[typing.Callable], bool]:
 
 
 class EventDispatch(ecs.System):
-    def filter(self, entity: ecs.Entity) -> bool:
-        return True
-
-    def update(self, entities: list[ecs.Entity], *args, **kwargs) -> None:
+    def update(self, _entities, *args, **kwargs) -> None:
         if "events" not in kwargs:
             kwargs["events"] = list(pygame.event.get())
-        super().update(entities, *args, **kwargs)
+        for entity in _entities:
+            self.update_entity(entity, *args, **kwargs)
 
     def update_entity(self, entity, *args, **kwargs) -> None:
         for event in kwargs.get("events", []):

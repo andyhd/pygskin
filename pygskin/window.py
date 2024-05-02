@@ -1,37 +1,48 @@
 from __future__ import annotations
 
-import asyncio
-
 import pygame
 
-from pygskin import ecs
-from pygskin.clock import Clock
-from pygskin.display import Display
+
+class MetaWindow(type):
+    fullscreen: bool = False
+    rect: pygame.Rect = pygame.Rect(0, 0, 800, 600)
+
+    @property
+    def size(cls) -> tuple[int, int]:
+        return cls.rect.size
+
+    @size.setter
+    def size(cls, value: tuple[int, int]) -> None:
+        cls.rect.size = value
+
+    @property
+    def surface(cls) -> pygame.Surface:
+        if not hasattr(cls, "_surface"):
+            flags = 0
+            flags &= pygame.FULLSCREEN if cls.fullscreen else 0
+            cls._surface = pygame.display.set_mode(cls.rect.size, flags)
+            pygame.display.set_caption(cls.title)
+        return cls._surface
+
+    @property
+    def title(cls) -> str:
+        if not hasattr(cls, "_title"):
+            cls._title = "Pygame Project"
+        return cls._title
+
+    @title.setter
+    def title(cls, title: str) -> None:
+        cls._title = title
+        pygame.display.set_caption(title)
+
+    @property
+    def width(cls) -> int:
+        return cls.rect.width
+
+    @property
+    def height(cls) -> int:
+        return cls.rect.height
 
 
-class Window(ecs.Entity, ecs.Container):
-    def __init__(self, **config) -> None:
-        super().__init__()
-        self.running = False
-        self.config = config
-        self.systems.extend(
-            [
-                Display(**config),
-                Clock(**config),
-            ]
-        )
-
-    async def main_loop(self) -> None:
-        self.running = True
-        while self.running:
-            events = list(pygame.event.get())
-
-            if any(event.type == pygame.QUIT for event in events):
-                self.running = False
-
-            self.update(events=events)
-            await asyncio.sleep(0)
-        pygame.quit()
-
-    def run(self) -> None:
-        asyncio.run(self.main_loop())
+class Window(metaclass=MetaWindow):
+    fullscreen: bool = False
