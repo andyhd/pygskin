@@ -1,37 +1,50 @@
-from dataclasses import dataclass
-from dataclasses import field
+from __future__ import annotations
+
+from collections.abc import Callable
 from functools import cache
+from typing import TypeAlias
 
 import pygame
 
-from pygskin.grid import Grid
+LazyImage: TypeAlias = Callable[[], pygame.Surface]
+Image: TypeAlias = pygame.Surface | LazyImage
+Grid: TypeAlias = tuple[int, int]
+Coord: TypeAlias = tuple[int, int]
+NameMap: TypeAlias = dict[str, tuple[int, int]] | None
 
 
-@dataclass
 class Spritesheet:
-    image: pygame.Surface
-    grid: Grid | tuple[int, int]
-    names: dict[str, tuple[int, int]] = field(default_factory=dict)
+    def __init__(self, image: Image, grid: Grid, name_map: NameMap = None) -> None:
+        self._image = image
+        self.grid = grid
+        self.name_map = name_map or {}
 
-    def __post_init__(self) -> None:
-        self.rect = self.image.get_size()
-        if not isinstance(self.grid, Grid):
-            self.grid = Grid(*self.grid)
-        self.grid.map_to(self.rect)
+    @property
+    def image(self) -> pygame.Surface:
+        if callable(self._image):
+            self._image = self._image()
+        return self._image
 
-    def __getitem__(self, key: str | tuple[int, int]) -> pygame.Surface:
-        if isinstance(key, str):
-            skey = str(key)
-            if self.names and skey in self.names:
-                return self[self.names[skey]]
+    @cache
+    def __getitem__(self, key: str | Coord) -> pygame.Surface:
+        if isinstance(key, str) and (image := self.name_map[key]):
+            return image
 
         if isinstance(key, tuple):
-            return self.image.subsurface(self.grid.rect(key))
+            grid_width, grid_height = self.grid
+            x, y = key
+
+            if not (0 <= x < grid_width and 0 <= y < grid_height):
+                raise KeyError
+
+            cell_size = self.__dict__.setdefault(
+                "_cell_size",
+                self.__dict__.setdefault(
+                    "_image_size", pygame.Vector2(self.image.get_size())
+                ).elementwise()
+                // self.grid,
+            )
+
+            return self.image.subsurface(cell_size.elementwise() * key)
 
         raise KeyError
-
-
-class CachedSpritesheet(Spritesheet):
-    @cache
-    def __getitem__(self, key: str | tuple[int, int]) -> pygame.Surface:
-        return super().__getitem__(key)
