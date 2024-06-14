@@ -1,275 +1,361 @@
-"""Dialogue as nested state machine."""
+"""Dialogue system for PygSkin."""
 from __future__ import annotations
 
 from collections import Counter
-from dataclasses import InitVar
 from dataclasses import dataclass
 from dataclasses import field
 from typing import Any
-from typing import TypedDict
+from typing import NamedTuple
 
-from pygskin.clock import Timer
-from pygskin.events import Event
-from pygskin.events import event_listener
-from pygskin.pubsub import message
 from pygskin.statemachine import StateMachine
 from pygskin.statemachine import TransitionTable
-from pygskin.utils import snakecase_to_capwords
 
-
-class Context(dict[str, Any]):
-    def eval(self, expr: str, **extra) -> Any:
-        return eval(str(expr), {}, dict(**self, **extra))
-
-    def eval_update(self, assignments: dict[str, Any], **extra) -> None:
-        for var, expr in assignments.items():
-            self[var] = self.eval(expr, **extra)
-
-
-@dataclass
-class Transition:
-    next_state: Any = None
-    condition: str | None = None
-
-    def __call__(self, context: Context) -> Any:
-        if self.condition is None or context.eval(self.condition):
-            return self.next_state
-        return None
-
-
-@dataclass
-class SceneTransition(Transition):
-    def __call__(self, context: Context) -> str | None:
-        return context.pop("next_state", None)
-
-
-@dataclass
-class Dialogue(StateMachine):
-    data: InitVar[dict | None] = None
-    context: Context | None = None
-    scenes: dict[str, Scene] = field(default_factory=dict)
-    transition_table: TransitionTable = field(default_factory=dict)
-
-    def __post_init__(self, data: dict | None) -> None:
-        data = data or {}
-        self.context = Context(data.pop("context", {}))
-        self.scenes = {}
-        self.end = message()
-        self.action_changed = message()
-
-        for name, actions in data.items():
-            self.scenes[name] = scene = Scene(context=self.context, actions=actions)
-            self.transition_table.setdefault(name, []).append(SceneTransition())
-            scene.end.subscribe(self.next_scene)
-            scene.state_changed.subscribe(self.action_changed)
-
-        super().__post_init__()
-
-    @property
-    def scene(self) -> Scene:
-        return self.scenes[self.state]
-
-    def update(self) -> None:
-        if not hasattr(self, "_updated"):
-            self._updated = True
-            self.action_changed()
-        self.scene.update()
-
-    def next_scene(self, next_scene: str | None = None) -> None:
-        if next_scene:
-            if next_scene == "end":
-                return self.end()
-            self.context["next_state"] = next_scene
-        self.send(self.context)
-
-
-@dataclass
-class Scene(StateMachine):
-    context: Context = field(default_factory=Context)
-    transition_table: TransitionTable = field(default_factory=dict)
-    actions: InitVar[list[dict[str, Any]]] = None
-
-    def __post_init__(self, actions: list[dict[str, Any]]) -> None:
-        self.actions = [Action.build(_, self.context) for _ in actions]
-
-        prev = None
-        branch_start = None
-        branch_end = None
-        for i, action in enumerate(self.actions):
-            self.transition_table.setdefault(i, [])
-            action.end.subscribe(self.next_action)
-
-            if prev is not None:
-                transitions = self.transition_table[prev]
-                if action.trigger is None:
-                    if branch_start is not None:
-                        branch_end.next_state = i
-                        branch_end = None
-                        branch_start = None
-                    transitions.append(Transition(next_state=i))
-                else:
-                    if branch_start is None:
-                        branch_start = prev
-                        branch_end = Transition(next_state=None)
-                    self.transition_table[branch_start].append(
-                        Transition(next_state=i, condition=action.trigger),
-                    )
-                    if branch_start != prev:
-                        transitions.append(branch_end)
-            prev = i
-
-        super().__post_init__()
-
-    @property
-    def action(self) -> Action:
-        return self.actions[self.state]
-
-    def update(self) -> None:
-        if not hasattr(self, "_updated"):
-            self._updated = True
-        self.action.update()
-
-    @message
-    def end(self, next_state: str | None) -> None:
-        self.state = next(iter(self.transition_table))
-
-    def next_action(self, next_state: str | None = None) -> None:
-        if next_state is not None:
-            return self.end(next_state)
-        self.send(self.context)
+Context = dict[str, Any]
 
 
 @dataclass
 class Action:
-    trigger: str | None = field(repr=False)
-    context: Context = field(repr=False, compare=False)
+    """Base class for all actions."""
 
-    def __str__(self) -> str:
-        return ""
+    condition: str | None = field(default=None, kw_only=True, repr=False)
 
-    @classmethod
-    def build(cls, data: dict[str, Any], context: Context) -> Action:
-        args = [data.pop("if", None), context]
-        name, data = data.popitem()
-        subclasses = {subclass.__name__: subclass for subclass in cls.__subclasses__()}
-
-        if action_class := subclasses.get(snakecase_to_capwords(name)):
-            return action_class(*args, *[data])
-
-        match data:
-            case {"animation": str(animation)}:
-                return Animate(*args, *[name, animation])
-            case {"text": str()} as line:
-                return Say(*args, *[name, line])
-            case str(line):
-                return Say(*args, *[name, line])
-            case _:
-                raise ValueError(f"{name} not a recognised Action")
-
-    def update(self) -> None:
-        if not hasattr(self, "_updated"):
-            self._updated = True
-
-    @message
-    def end(self, next_state: str | None = None) -> None:
+    def execute(self, context: Context) -> None:
         pass
 
 
 @dataclass
 class UpdateContext(Action):
+    """Update the context with the results of evaluating the assignments.
+
+    >>> context = {"x": 2}
+    >>> UpdateContext({"x": "x + 1"}).execute(context)
+    >>> context["x"]
+    3
+    """
+
     assignments: dict[str, Any]
 
-    def update(self) -> None:
-        super().update()
-        self.context.eval_update(self.assignments)
-        self.end()
+    def execute(self, context: Context) -> None:
+        context.update(
+            (var, eval(str(expr), context)) for var, expr in self.assignments.items()
+        )
 
 
-class Timed:
-    def update(self) -> None:
-        super().update()
-        if not hasattr(self, "timer"):
-            self.timer = Timer(self.duration, on_expire=self.end, delete=True)
-            self.timer.start()
-
-    @message
-    def end(self) -> None:
-        if hasattr(self, "timer"):
-            self.timer.cancel()
-            del self.timer
+Actor = str
+WORDS_PER_SEC = 3.3
 
 
 @dataclass
-class Say(Timed, Action):
-    actor: str
-    line: str | dict
-    duration: float | None = None
+class Line(Action):
+    """A line of dialogue spoken by an actor."""
+
+    actor: Actor
+    text: str
+    duration: float = field(default=1.0, repr=False)
 
     def __post_init__(self) -> None:
-        if isinstance(self.line, dict):
-            self.duration = self.line.get("duration", None)
-            self.line = self.line["text"]
-        if self.duration is None:
-            self.duration = max(len(self.line.split()) / 3.3)
-
-    def __str__(self) -> str:
-        return self.line
+        self.duration = max(len(self.text.split()) / WORDS_PER_SEC, 1.0)
 
 
 @dataclass
-class Animate(Timed, Action):
-    actor: str
-    animation: Any
+class StageDirection(Action):
+    """A stage direction for actors to follow."""
 
-    def __post_init__(self) -> None:
-        self.duration = 1.0
-
-    def __str__(self) -> str:
-        return f"*{self.animation}*"
+    actors: list[Actor]
+    direction: str
 
 
 @dataclass
-class Pause(Timed, Action):
-    duration: float
+class Pause(Action):
+    """Pause the dialogue for a specified duration."""
 
-    def __str__(self) -> str:
-        return "..."
-
-
-@dataclass
-class NextState(Action):
-    next_state: str
-
-    def update(self) -> None:
-        super().update()
-        self.end(self.next_state)
-
-
-Option = TypedDict("Option", {"value": str, "text": str, "if": str})
-
-
-class OptionSelected(Event):
-    pass
+    duration: float = 1.0
 
 
 @dataclass
-class Branch(Action):
+class ChangeScene(Action):
+    """Change the scene to the specified scene."""
+
+    scene: str
+
+    def execute(self, context: Context) -> None:
+        context["change_scene"] = self.scene
+
+
+class Option(NamedTuple):
+    value: str
+    text: str
+    condition: str = "True"
+
+    def __repr__(self) -> str:
+        return f"Option(value={self.value!r}, text={self.text!r})"
+
+
+@dataclass
+class Select(Action):
+    """Select an option.
+
+    >>> context = {"asked": 1}
+    >>> select = Select([
+    ...     Option(value="say_no", text="Are we there yet?"),
+    ...     Option(value="curse", text="How about now?", condition="asked >= 2"),
+    ... ])
+    >>> select.options(context)
+    [Option(value='say_no', text='Are we there yet?')]
+    >>> context["asked"] += 1
+    >>> select.options(context)  # doctest: +NORMALIZE_WHITESPACE
+    [Option(value='say_no', text='Are we there yet?'),
+     Option(value='curse', text='How about now?')]
+    >>> select.select(
+    ...     Option(value="curse", text="How about now?", condition="asked >= 2"),
+    ...     context,
+    ... )
+    >>> context["change_scene"]
+    'curse'
+    """
+
     all_options: list[Option]
 
     def __post_init__(self) -> None:
-        self.times_seen = Counter()
+        self.times_seen: Counter[Option] = Counter()
+
+    def options(self, context: Context) -> list[Option]:
+        """Return the options that are shown."""
+        shown = [
+            option
+            for option in self.all_options
+            if eval(option.condition, context, {"_seen": self.times_seen[option]})
+        ]
+        self.times_seen.update(shown)
+        return shown
+
+    def select(self, option: Option, context: Context) -> None:
+        """Select an option."""
+        context.update({"change_scene": option.value})
+
+
+@dataclass
+class ActionTransition:
+    """A transition from one Action to another."""
+
+    next_state: int | None
+    condition: str | None = None
+
+    def __call__(self, context: Context) -> int | None:
+        if self.condition is None or eval(self.condition, context):
+            return self.next_state
+        return None
+
+
+class Scene(StateMachine[int]):
+    """A scene in a dialogue.
+
+    >>> context = {"bob_is_lazy": True}
+    >>> scene = Scene([
+    ...     Line(actor="Alice", text="Good work, everyone!"),
+    ...     Line(actor="Bob", text="Thanks, Alice!"),
+    ...     Line(actor="Alice", text="You too, Bob.", condition="not bob_is_lazy"),
+    ...     Line(actor="Alice", text="Not you, Bob.", condition="bob_is_lazy"),
+    ... ])
+    >>> scene.action
+    Line(actor='Alice', text='Good work, everyone!')
+    >>> scene.send(context)
+    1
+    >>> scene.action
+    Line(actor='Bob', text='Thanks, Alice!')
+    >>> scene.send(context)
+    3
+    >>> scene.action
+    Line(actor='Alice', text='Not you, Bob.')
+    """
+
+    def __init__(self, actions: list[Action]) -> None:
+        self.actions = actions
+        transitions = TransitionTable[int]()
+
+        branch_point: int | None = None
+        else_: ActionTransition = ActionTransition(None)
+
+        for from_state, (next_state, action) in enumerate(enumerate(actions[1:], 1)):
+            to_next_state = ActionTransition(next_state, action.condition)
+
+            if action.condition:
+                if branch_point is None:
+                    branch_point = from_state
+
+                transitions.setdefault(branch_point, []).append(to_next_state)
+
+                if from_state != branch_point:
+                    transitions.setdefault(from_state, []).append(else_)
+
+            else:
+                if branch_point is not None:
+                    else_.next_state = next_state
+                    else_ = ActionTransition(None)
+                    branch_point = None
+
+                transitions.setdefault(from_state, []).append(to_next_state)
+
+        super().__init__(transitions)
 
     @property
-    def options(self) -> list[Option]:
-        return list(filter(self.is_shown, self.all_options))
+    def action(self) -> Action:
+        """Return the current action."""
+        return self.actions[self.state or 0]
 
-    def is_shown(self, option: Option) -> bool:
-        return self.context.eval(
-            option.get("if", "True"), _seen=self.times_seen[option["text"]]
+
+def scene_transition(context: Context) -> str | None:
+    """A transition from one scene to another."""
+    return context.pop("change_scene", None)
+
+
+class Dialogue(StateMachine[str]):
+    """A dialogue consisting of multiple scenes.
+
+    >>> context = {}
+    >>> dialogue = Dialogue({
+    ...     "scene1": Scene([Line("Alice", "Hello, world!"), ChangeScene("scene2")]),
+    ...     "scene2": Scene([Line("Bob", "Goodbye, world!"), ChangeScene("scene1")]),
+    ... })
+    >>> dialogue.transition_table  # doctest: +ELLIPSIS +NORMALIZE_WHITESPACE
+    {'scene1': [<function scene_transition at ...>],
+     'scene2': [<function scene_transition at ...>]}
+    >>> dialogue.scene.action
+    Line(actor='Alice', text='Hello, world!')
+    >>> dialogue.scene.send(context)
+    1
+    >>> dialogue.scene.action
+    ChangeScene(scene='scene2')
+    >>> dialogue.scene.action.execute(context)
+    >>> dialogue.send(context)
+    'scene2'
+    >>> dialogue.scene.action
+    Line(actor='Bob', text='Goodbye, world!')
+    """
+
+    def __init__(
+        self, scenes: dict[str, Scene], context: Context | None = None
+    ) -> None:
+        self.scenes = scenes
+        self.context = context or {}
+        super().__init__(
+            TransitionTable[str](**{scene: [scene_transition] for scene in scenes}),
         )
 
-    @event_listener
-    def select(self, event: OptionSelected) -> None:
-        for option in event.options_shown:
-            self.times_seen[option["text"]] += 1
-        self.end(event.options_shown[event.selection]["value"])
+    @property
+    def scene(self) -> Scene:
+        """Return the current scene."""
+        if self.state is None:
+            return list(self.scenes.values())[0]
+        return self.scenes[self.state]
+
+
+def load_dialogue(data: dict) -> Dialogue:
+    """Load a dialogue from a dict.
+
+    >>> json_data = {
+    ...     "context": {"bob_is_lazy": True},
+    ...     "scene1": [
+    ...         {"Alice": "Good work, everyone!"},
+    ...         {"Bob": "Thanks, Alice!"},
+    ...         {"Alice": "You too, Bob.", "if": "not bob_is_lazy"},
+    ...         {"Alice": "Not you, Bob.", "if": "bob_is_lazy"},
+    ...         {"next_state": "scene2"},
+    ...     ],
+    ...     "scene2": [
+    ...         {"Alice": "Goodbye, world!"},
+    ...         {"Bob": "Hello, world!"},
+    ...     ],
+    ... }
+    >>> dialogue = load_dialogue(json_data)
+    >>> dialogue.scene.action
+    Line(actor='Alice', text='Good work, everyone!')
+    >>> dialogue.scene.send(dialogue.context)
+    1
+    >>> dialogue.scene.action
+    Line(actor='Bob', text='Thanks, Alice!')
+    >>> dialogue.scene.send(dialogue.context)
+    3
+    >>> dialogue.scene.action
+    Line(actor='Alice', text='Not you, Bob.')
+    """
+    context: Context = data.pop("context", {})
+    scenes = {name: load_scene(scene_data) for name, scene_data in data.items()}
+    return Dialogue(scenes, context)
+
+
+def load_scene(scene_data: list[dict]) -> Scene:
+    """Load a scene from a list of action data.
+
+    >>> context = {"bob_is_lazy": True}
+    >>> scene_data = [
+    ...     {"Alice": "Good work, everyone!"},
+    ...     {"Bob": "Thanks, Alice!"},
+    ...     {"Alice": "You too, Bob.", "if": "not bob_is_lazy"},
+    ...     {"Alice": "Not you, Bob.", "if": "bob_is_lazy"},
+    ... ]
+    >>> scene = load_scene(scene_data)
+    >>> scene.action
+    Line(actor='Alice', text='Good work, everyone!')
+    >>> scene.send(context)
+    1
+    >>> scene.action
+    Line(actor='Bob', text='Thanks, Alice!')
+    >>> scene.send(context)
+    3
+    >>> scene.action
+    Line(actor='Alice', text='Not you, Bob.')
+    """
+    return Scene([load_action(action_data) for action_data in scene_data])
+
+
+def load_action(action_data: dict) -> Action:
+    """Load an action from a dict.
+
+    >>> load_action({"Alice": "Good work, everyone!"})
+    Line(actor='Alice', text='Good work, everyone!')
+    >>> load_action({"Alice": "Not you, Bob.", "if": "bob_is_lazy"})
+    Line(actor='Alice', text='Not you, Bob.')
+    >>> load_action({"next_state": "scene2"})
+    ChangeScene(scene='scene2')
+    >>> load_action({"branch": [
+    ...     {"value": "say_no", "text": "Are we there yet?"},
+    ...     {"value": "curse", "text": "How about now?"},
+    ... ]})  # doctest: +NORMALIZE_WHITESPACE
+    Select(all_options=[Option(value='say_no', text='Are we there yet?'),
+                        Option(value='curse', text='How about now?')])
+    >>> load_action({"pause": 1.0})
+    Pause(duration=1.0)
+    >>> load_action({"Alice": {"animation": "wave"}})
+    StageDirection(actors=['Alice'], direction='wave')
+    >>> load_action({"update_context": {"x": "x + 1"}})
+    UpdateContext(assignments={'x': 'x + 1'})
+    """
+    condition = action_data.pop("if", None)
+    match list(action_data.items())[0]:
+        case "update_context", dict(assignments):
+            return UpdateContext(assignments, condition=condition)
+        case "next_state", str(scene):
+            return ChangeScene(scene, condition=condition)
+        case "branch", list(options):
+            return Select([load_option(option) for option in options])
+        case "pause", float(duration):
+            return Pause(duration, condition=condition)
+        case str(actor), {"animation": str(direction)}:
+            return StageDirection([actor], direction, condition=condition)
+        case str(actor), str(text):
+            return Line(actor, text, condition=condition)
+        case _:
+            raise ValueError(f"Unknown action: {action_data}")
+
+
+def load_option(option_data: dict) -> Option:
+    """Load an option from a dict.
+
+    >>> load_option({"value": "say_no", "text": "Are we there yet?"})
+    Option(value='say_no', text='Are we there yet?')
+    >>> load_option({"value": "curse", "text": "How about now?", "if": "asked >= 2"})
+    Option(value='curse', text='How about now?')
+    """
+    condition = option_data.pop("if", None)
+    return Option(**option_data, condition=condition)

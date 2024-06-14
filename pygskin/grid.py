@@ -47,10 +47,10 @@ class Grid:
 
     def neighbours(self, x, y, wrap: bool = False) -> Iterator[tuple[int, int]]:
         wrap_x = wrap_y = wrap
-        rows = (y - 1, y, y + 1)
+        rows = [y - 1, y, y + 1]
         if wrap_y:
             rows = [(y % self.rows) for y in rows]
-        cols = (x - 1, x, x + 1)
+        cols = [x - 1, x, x + 1]
         if wrap_x:
             cols = [(x % self.cols) for x in cols]
         for ny in rows:
