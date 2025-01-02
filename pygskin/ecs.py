@@ -1,69 +1,60 @@
-from __future__ import annotations
+"""Entity-Component-System (ECS) implementation."""
 
-import inspect
 from collections.abc import Callable
-from functools import partial
+from collections.abc import Iterable
+from functools import wraps
 from typing import Any
-from typing import ClassVar
+from typing import Concatenate
 from typing import get_type_hints
 
-from pygskin.utils import Decorator
+FilterFn = Callable[[Any], bool]
+SystemFn = Callable[Concatenate[Any, ...], None]
 
 
-class Entity:
-    instances: ClassVar[list[Entity]] = []
+def filter_entities(filter_fn: FilterFn) -> Callable[[SystemFn], SystemFn]:
+    """Decorator to set filter function for system.
 
-    def __init__(self) -> None:
-        self.instances.append(self)
+    >>> def has_velocity(entity):
+    ...     return hasattr(entity, "velocity")
+    >>> @filter_entities(has_velocity)
+    ... def apply_velocity(entity):
+    ...     entity.position += entity.velocity
+    """
 
-    def __getattr__(self, name: str) -> Any:
-        for _, value in self.__dict__.items():
-            if value.__class__.__name__ == name:
-                return value
+    def _filtered_system(system_fn: SystemFn) -> SystemFn:
 
-        for attr, value in self.__class__.__dict__.items():
-            if value.__class__.__name__ == name:
-                return getattr(self, attr)
+        @wraps(system_fn)
+        def _system_fn(entity: Any, **kwargs) -> None:
+            if filter_fn(entity):
+                system_fn(entity, **kwargs)
 
-        return self.__getattribute__(name)
+        _system_fn.filtered = True  # type: ignore[attr-defined]
+        return _system_fn
 
-    def has(self, *components: type) -> bool:
-        return any(isinstance(attr, components) for _, attr in inspect.getmembers(self))
-
-
-class System(Decorator):
-    def update(self, entities: list[Entity], *args, **kwargs) -> None:
-        for entity in filter(self.filter, entities):
-            self.update_entity(entity, *args, **kwargs)
-
-    def filter(self, entity: Entity) -> bool:
-        return isinstance(entity, self.entity_class)
-
-    def update_entity(self, entity: Entity, *args, **kwargs) -> None:
-        self.call_function(entity, *args, **kwargs)
-
-    def set_args(self, *args, **kwargs) -> None:
-        super().set_args()
-        self.filter = kwargs.get("filter", self.filter)
-
-    def set_function(self, fn: Callable) -> None:
-        super().set_function(fn)
-
-        if isinstance(fn, partial):
-            hints = get_type_hints(fn.func)
-        else:
-            hints = get_type_hints(fn)
-
-        self.entity_class = next(iter(hints.values()))
+    return _filtered_system
 
 
-class Container:
-    @property
-    def systems(self) -> list[System]:
-        if not hasattr(self, "_systems"):
-            self._systems = []
-        return self._systems
+def get_ecs_update_fn(systems: list[SystemFn]) -> Callable:
+    """Return an update function for ECS."""
+    filter_cache: dict[SystemFn, SystemFn] = {}
 
-    def update(self, **kwargs) -> None:
-        for system in self.systems:
-            system.update(Entity.instances, **kwargs)
+    def get_filtered_system_fn(system: SystemFn) -> SystemFn:
+        if getattr(system, "filtered", False):
+            return system
+
+        if callable(filter := getattr(system, "filter_entities", None)):
+            return filter_entities(filter)(system)
+
+        entity_type = next(iter(get_type_hints(system).values()))
+        return filter_entities(lambda _: isinstance(_, entity_type))(system)
+
+    def ecs_update(entities: Iterable[Any], **kwargs) -> None:
+        """Update entities with systems."""
+        for system in systems:
+            if not (system_fn := filter_cache.get(system)):
+                system_fn = filter_cache[system] = get_filtered_system_fn(system)
+            for entity in entities:
+                system_fn(entity, entities=entities, **kwargs)
+
+    return ecs_update
+

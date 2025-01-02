@@ -1,8 +1,5 @@
 """Easing functions."""
 import math
-from collections.abc import Callable
-
-EasingFunction = Callable[[float], float]
 
 
 def sine_in(x: float) -> float:

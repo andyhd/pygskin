@@ -1,275 +1,124 @@
-"""Dialogue as nested state machine."""
-from __future__ import annotations
-
 from collections import Counter
-from dataclasses import InitVar
-from dataclasses import dataclass
-from dataclasses import field
-from typing import Any
-from typing import TypedDict
+from collections import defaultdict
+from collections.abc import Callable
+from collections.abc import Generator
+from collections.abc import Iterator
+from functools import partial
+from itertools import pairwise
 
-from pygskin.clock import Timer
-from pygskin.events import Event
-from pygskin.events import event_listener
-from pygskin.pubsub import message
-from pygskin.statemachine import StateMachine
-from pygskin.statemachine import TransitionTable
-from pygskin.utils import snakecase_to_capwords
+from pygskin import statemachine
+
+Action = Callable[[], None]
+Dialogue = dict[str, list[dict]]
 
 
-class Context(dict[str, Any]):
-    def eval(self, expr: str, **extra) -> Any:
-        return eval(str(expr), {}, dict(**self, **extra))
+def iter_dialogue(dialogue: Dialogue, context: dict, **callbacks) -> Iterator[Action]:
+    """
+    Yields callable actions representing steps in a dialogue script.
 
-    def eval_update(self, assignments: dict[str, Any], **extra) -> None:
-        for var, expr in assignments.items():
-            self[var] = self.eval(expr, **extra)
+    This generator function processes a dialogue graph represented as a parsed
+    JSON object.  Each yielded callable performs an action, such as delivering a
+    line of dialogue, triggering an event, or prompting user input to determine
+    the next branch of the dialogue.
 
+    Args:
+        dialogue: A dict representing the parsed dialogue script.
+        context: A dict of shared state that persists across the dialogue run.
 
-@dataclass
-class Transition:
-    next_state: Any = None
-    condition: str | None = None
+    Yields:
+        A function that performs the next step in the dialogue sequence.
+    """
+    nodes: dict[str, Generator] = {}
+    callback = lambda name: callbacks.get(name, lambda *_: None)  # noqa: E731
 
-    def __call__(self, context: Context) -> Any:
-        if self.condition is None or context.eval(self.condition):
-            return self.next_state
-        return None
+    def change_node(input):
+        return nodes.get(context.pop("next_node", None), None)
 
+    def eval_expr(expr, extra=None):
+        return eval(str(expr), context.copy(), extra or {})
 
-@dataclass
-class SceneTransition(Transition):
-    def __call__(self, context: Context) -> str | None:
-        return context.pop("next_state", None)
+    def jump(target=None, condition=None):
 
+        def transition(_, target=target):
+            return target if condition is None or eval_expr(condition) else None
 
-@dataclass
-class Dialogue(StateMachine):
-    data: InitVar[dict | None] = None
-    context: Context | None = None
-    scenes: dict[str, Scene] = field(default_factory=dict)
-    transition_table: TransitionTable = field(default_factory=dict)
+        return transition
 
-    def __post_init__(self, data: dict | None) -> None:
-        data = data or {}
-        self.context = Context(data.pop("context", {}))
-        self.scenes = {}
-        self.end = message()
-        self.action_changed = message()
+    def update_context(assignments: dict):
+        context.update({k: eval_expr(v) for k, v in assignments.items()})
 
-        for name, actions in data.items():
-            self.scenes[name] = scene = Scene(context=self.context, actions=actions)
-            self.transition_table.setdefault(name, []).append(SceneTransition())
-            scene.end.subscribe(self.next_scene)
-            scene.state_changed.subscribe(self.action_changed)
+    def prompt(all_options: list[dict]):
+        times_seen: Counter[tuple] = Counter()
 
-        super().__post_init__()
+        def is_shown(option):
+            seen = times_seen[tuple(option.items())]
+            return eval_expr(option.get("if", "True"), extra={"_seen": seen})
 
-    @property
-    def scene(self) -> Scene:
-        return self.scenes[self.state]
+        def get_options():
+            options = [option for option in all_options if is_shown(option)]
+            choice = context.pop("choice", None)
 
-    def update(self) -> None:
-        if not hasattr(self, "_updated"):
-            self._updated = True
-            self.action_changed()
-        self.scene.update()
+            if choice in options:
+                context["next_node"] = choice["value"]
+                return
 
-    def next_scene(self, next_scene: str | None = None) -> None:
-        if next_scene:
-            if next_scene == "end":
-                return self.end()
-            self.context["next_state"] = next_scene
-        self.send(self.context)
+            times_seen.update([tuple(option.items()) for option in options])
+            callback("prompt")(options)
 
+        return get_options
 
-@dataclass
-class Scene(StateMachine):
-    context: Context = field(default_factory=Context)
-    transition_table: TransitionTable = field(default_factory=dict)
-    actions: InitVar[list[dict[str, Any]]] = None
-
-    def __post_init__(self, actions: list[dict[str, Any]]) -> None:
-        self.actions = [Action.build(_, self.context) for _ in actions]
-
-        prev = None
-        branch_start = None
-        branch_end = None
-        for i, action in enumerate(self.actions):
-            self.transition_table.setdefault(i, [])
-            action.end.subscribe(self.next_action)
-
-            if prev is not None:
-                transitions = self.transition_table[prev]
-                if action.trigger is None:
-                    if branch_start is not None:
-                        branch_end.next_state = i
-                        branch_end = None
-                        branch_start = None
-                    transitions.append(Transition(next_state=i))
-                else:
-                    if branch_start is None:
-                        branch_start = prev
-                        branch_end = Transition(next_state=None)
-                    self.transition_table[branch_start].append(
-                        Transition(next_state=i, condition=action.trigger),
-                    )
-                    if branch_start != prev:
-                        transitions.append(branch_end)
-            prev = i
-
-        super().__post_init__()
-
-    @property
-    def action(self) -> Action:
-        return self.actions[self.state]
-
-    def update(self) -> None:
-        if not hasattr(self, "_updated"):
-            self._updated = True
-        self.action.update()
-
-    @message
-    def end(self, next_state: str | None) -> None:
-        self.state = next(iter(self.transition_table))
-
-    def next_action(self, next_state: str | None = None) -> None:
-        if next_state is not None:
-            return self.end(next_state)
-        self.send(self.context)
-
-
-@dataclass
-class Action:
-    trigger: str | None = field(repr=False)
-    context: Context = field(repr=False, compare=False)
-
-    def __str__(self) -> str:
-        return ""
-
-    @classmethod
-    def build(cls, data: dict[str, Any], context: Context) -> Action:
-        args = [data.pop("if", None), context]
-        name, data = data.popitem()
-        subclasses = {subclass.__name__: subclass for subclass in cls.__subclasses__()}
-
-        if action_class := subclasses.get(snakecase_to_capwords(name)):
-            return action_class(*args, *[data])
-
-        match data:
-            case {"animation": str(animation)}:
-                return Animate(*args, *[name, animation])
-            case {"text": str()} as line:
-                return Say(*args, *[name, line])
-            case str(line):
-                return Say(*args, *[name, line])
+    def make_action(action_data):
+        match action_data:
+            case "update_context", dict(assignments):
+                return partial(update_context, assignments)
+            case "next_node", str(node_name):
+                return partial(context.update, next_node=node_name)
+            case "pause", float(duration):
+                return partial(callback("pause"), duration)
+            case "options", list(options):
+                return prompt(options)
+            case "stage_direction", dict(params):
+                return partial(callback("stage_direction"), params)
+            case str(actor), str(line):
+                return partial(callback("speak"), actor, line)
             case _:
-                raise ValueError(f"{name} not a recognised Action")
+                raise ValueError(f"Invalid action: {action_data}")
 
-    def update(self) -> None:
-        if not hasattr(self, "_updated"):
-            self._updated = True
+    def make_node(name: str, node_data: list[dict]):
+        transitions: dict[Action, list[Callable]] = defaultdict(list)
+        fork: Action | None = None
+        jump_else = jump(None)
 
-    @message
-    def end(self, next_state: str | None = None) -> None:
-        pass
+        actions = [(_.pop("if", None), make_action(_.popitem())) for _ in node_data]
 
+        # XXX what if the first action has a condition?
+        for (_, action), (condition, next) in pairwise(actions + [(None, None)]):
+            if condition:
+                fork = fork or action
+                transitions[fork].append(jump(next, condition))
+                if action != fork:
+                    transitions[action].append(jump_else)
+            else:
+                if fork:
+                    jump_else.__defaults__ = (next,)
+                    jump_else = jump(None)
+                    fork = None
+                transitions[action].append(jump(next, condition))
 
-@dataclass
-class UpdateContext(Action):
-    assignments: dict[str, Any]
+        nodes[name] = statemachine(transitions)
+        return nodes[name], [change_node]
 
-    def update(self) -> None:
-        super().update()
-        self.context.eval_update(self.assignments)
-        self.end()
+    sm = statemachine(dict(make_node(name, node) for name, node in dialogue.items()))
+    node = next(sm)
+    input = None
+    while node:
+        action = node.send(input)
+        yield action
+        input = context
+        if "next_node" in context:
+            if context["next_node"] == "end":
+                break
+            node.send(statemachine.RESET)  # type: ignore
+            node = sm.send(context)
+            input = None
 
-
-class Timed:
-    def update(self) -> None:
-        super().update()
-        if not hasattr(self, "timer"):
-            self.timer = Timer(self.duration, on_expire=self.end, delete=True)
-            self.timer.start()
-
-    @message
-    def end(self) -> None:
-        if hasattr(self, "timer"):
-            self.timer.cancel()
-            del self.timer
-
-
-@dataclass
-class Say(Timed, Action):
-    actor: str
-    line: str | dict
-    duration: float | None = None
-
-    def __post_init__(self) -> None:
-        if isinstance(self.line, dict):
-            self.duration = self.line.get("duration", None)
-            self.line = self.line["text"]
-        if self.duration is None:
-            self.duration = max(len(self.line.split()) / 3.3)
-
-    def __str__(self) -> str:
-        return self.line
-
-
-@dataclass
-class Animate(Timed, Action):
-    actor: str
-    animation: Any
-
-    def __post_init__(self) -> None:
-        self.duration = 1.0
-
-    def __str__(self) -> str:
-        return f"*{self.animation}*"
-
-
-@dataclass
-class Pause(Timed, Action):
-    duration: float
-
-    def __str__(self) -> str:
-        return "..."
-
-
-@dataclass
-class NextState(Action):
-    next_state: str
-
-    def update(self) -> None:
-        super().update()
-        self.end(self.next_state)
-
-
-Option = TypedDict("Option", {"value": str, "text": str, "if": str})
-
-
-class OptionSelected(Event):
-    pass
-
-
-@dataclass
-class Branch(Action):
-    all_options: list[Option]
-
-    def __post_init__(self) -> None:
-        self.times_seen = Counter()
-
-    @property
-    def options(self) -> list[Option]:
-        return list(filter(self.is_shown, self.all_options))
-
-    def is_shown(self, option: Option) -> bool:
-        return self.context.eval(
-            option.get("if", "True"), _seen=self.times_seen[option["text"]]
-        )
-
-    @event_listener
-    def select(self, event: OptionSelected) -> None:
-        for option in event.options_shown:
-            self.times_seen[option["text"]] += 1
-        self.end(event.options_shown[event.selection]["value"])

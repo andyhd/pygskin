@@ -1,176 +1,122 @@
-from dataclasses import dataclass
-from operator import itemgetter
-from typing import Iterator
-from typing import Mapping
+"""A simple animation system."""
+
+from bisect import bisect
+from collections.abc import Callable
+from collections.abc import Iterator
+from typing import Generic
 from typing import Protocol
 from typing import TypeVar
+from typing import cast
 from typing import runtime_checkable
 
-from pygskin import ecs
-from pygskin.clock import on_tick
-from pygskin.easing import EasingFunction
-from pygskin.pubsub import message
+import pygame
 
-Frame = TypeVar("Frame")
-Keyframes = Mapping[float, Frame | tuple[Frame, EasingFunction]]
+T = TypeVar("T")
+
+
+EasingFn = Callable[[float], float]
+LerpFn = Callable[[T, T, float], T]
 
 
 @runtime_checkable
-class Lerpable(Protocol[Frame]):
+class Lerpable(Generic[T], Protocol):
     """Can be plugged into standard linear interpolation algorithm."""
 
-    def __add__(self: Frame, other: Frame) -> Frame:
+    def __add__(self: T, other: T) -> T:
         ...
 
-    def __mul__(self: Frame, other: float) -> Frame:
+    def __mul__(self: T, other: float) -> T:
         ...
 
-    def __sub__(self: Frame, other: Frame) -> Frame:
-        ...
-
-
-class Animation(Protocol):
-    duration: float
-
-    def frame_at(self, index: float) -> Frame:
+    def __sub__(self: T, other: T) -> T:
         ...
 
 
-@dataclass
-class KeyframeAnimation(Animation):
+def lerp(start, end, quotient):
+    """Linear interpolation between two values."""
+    if isinstance(start, dict) and isinstance(end, dict):
+        return {
+            key: lerp(value, end[key], quotient)
+            for key, value in start.items()
+        }
+
+    if hasattr(start, "lerp") and callable(start.lerp):
+        return start.lerp(end, quotient)
+
+    if isinstance(start, Lerpable):
+        return start + ((end - start) * quotient)
+
+    # can't interpolate
+    return start
+
+
+def animate(
+    keyframes: dict[float, T | tuple[T, EasingFn]] | list[T],
+    get_quotient: Callable[[], float],
+    lerp: LerpFn = lerp,
+) -> Iterator[T]:
     """
-    Mapping of indexes to key Frames.
+    Get the frame of animation that interpolates between keyframes.
 
-    >>> anim = KeyframeAnimation({
-    ...     0: {"x": 2},
-    ...     1: {"x": 8},
-    ...     2: {"x": 3},
-    ... })
-    >>> anim.frame_at(0)
-    {'x': 2.0}
-    >>> anim.frame_at(0.5)
-    {'x': 5.0}
-    >>> anim.frame_at(1)
-    {'x': 8.0}
-    >>> anim.frame_at(1.5)
-    {'x': 5.5}
+    >>> frames = {
+    ...     0.0: 2.0,
+    ...     0.5: 8.0,
+    ...     1.0: 3.0,
+    ... }
+    >>> from pygskin import Timer  # doctest: +ELLIPSIS
+    >>> timer = Timer(3000)
+    >>> anim = animate(frames, timer.quotient)
+    >>> next(anim)
+    2.0
+    >>> timer.tick(1500)
+    >>> next(anim)
+    8.0
+    >>> timer.tick(750)
+    >>> next(anim)
+    5.5
+    >>> timer.tick(750)
+    >>> next(anim)
+    3.0
     """
+    if isinstance(keyframes, list):
+        num_frames = len(keyframes)
+        if num_frames < 2:
+            raise ValueError("At least two frames are required")
+        keyframes = {i / (num_frames - 1): keyframes[i] for i in range(num_frames)}
 
-    keyframes: Keyframes
+    keys = sorted(keyframes.keys())
+    if min(keys) < 0.0 or max(keys) > 1.0:
+        raise ValueError("Keyframes must span [0, 1]")
 
-    def __post_init__(self) -> None:
-        self.keyframes, self.duration = self._sort_keyframes()
-        self.lerp_fn = self._lerp
+    while True:
+        easing = None
+        try:
+            key = pygame.math.clamp(get_quotient(), 0.0, 1.0)
+        except StopIteration:
+            return
+        key_pos = bisect(keys, key)
 
-    def _sort_keyframes(self) -> tuple[Keyframes, float]:
-        max_index = 0
-        keyframes = {}
-        for index, frame in sorted(self.keyframes.items(), key=itemgetter(0)):
-            max_index = max(index, max_index)
-            easing = None
-            if isinstance(frame, tuple) and len(frame) == 2 and callable(frame[1]):
-                frame, easing = frame
-            keyframes[index] = (frame, easing)
-        return keyframes, max_index
+        start_key = keys[max(0, key_pos - 1)]
+        if isinstance(start_frame := keyframes[start_key], tuple):
+            start_frame, easing = start_frame
 
-    def frame_at(self, index: float) -> Frame:
-        start = end = easing = None
+        if start_key == keys[-1]:
+            yield cast(T, start_frame)
+            continue
 
-        for i, (frame, fn) in self.keyframes.items():
-            if i <= index:
-                start, start_frame, easing = i, frame, fn
-                continue
-            if i >= index:
-                end, end_frame, easing = i, frame, fn
-                break
+        end_key = keys[min(len(keys) - 1, key_pos)]
+        if isinstance(end_frame := keyframes[end_key], tuple):
+            end_frame, _ = end_frame
 
-        if start is None:
-            return end_frame
+        if end_key == keys[0]:
+            yield cast(T, end_frame)
+            continue
 
-        if end is None:
-            return start_frame
-
-        duration = end - start
-        progress = (index - start) / duration
+        duration = end_key - start_key
+        quotient = (key - start_key) / duration
 
         if easing:
-            progress = easing(progress)
+            quotient = easing(quotient)
 
-        return self.lerp(start_frame, end_frame, progress)
+        yield lerp(start_frame, end_frame, quotient)
 
-    def __getitem__(self, index: float) -> Frame:
-        return self.frame_at(index)
-
-    def lerp(self, start: Frame, end: Frame, quotient: float) -> Frame:
-        return self.lerp_fn(start, end, quotient)
-
-    def _lerp(self, start: Frame, end: Frame, quotient: float) -> Frame:
-        if isinstance(start, dict):
-            return {
-                key: self._lerp(val, end[key], quotient) for key, val in start.items()
-            }
-
-        if hasattr(start, "lerp"):
-            return start.lerp(end, quotient)
-
-        if isinstance(start, Lerpable):
-            return start + quotient * (end - start)
-
-        return start
-
-
-@dataclass
-class AnimationPlayer(ecs.Entity):
-    animation: Animation
-    loops: float = 0.0  # float allows math.inf
-
-    def __post_init__(self) -> None:
-        ecs.Entity.__init__(self)
-        self._loops = self.loops
-        self.reset()
-
-    def reset(self) -> None:
-        self.ticks = 0
-        self.started = False
-        self.running = False
-        self.ended = False
-
-    def start(self) -> None:
-        if not self.started:
-            self.started = True
-            self.running = True
-
-    def pause(self) -> None:
-        if self.started and not self.ended:
-            self.running = False
-
-    def resume(self) -> None:
-        if self.started and not self.ended:
-            self.running = True
-
-    @message
-    def stop(self) -> None:
-        if not self.ended:
-            self.running = False
-            self.ended = True
-
-    @on_tick
-    def update(self, dt: int, **_) -> None:
-        if self.running:
-            if self.ticks >= self.animation.duration:
-                if self._loops > 0:
-                    self._loops -= 1
-                    self.reset()
-                    self.start()
-                else:
-                    self.stop()
-            self.ticks += dt
-
-    @property
-    def current_frame(self) -> Frame:
-        return self.animation.frame_at(self.ticks)
-
-    def frames(self) -> Iterator[Frame]:
-        self.start()
-        while not self.ended:
-            yield self.animation.current_frame

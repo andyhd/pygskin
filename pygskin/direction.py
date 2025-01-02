@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from enum import IntFlag
 
 from pygame.math import Vector2
@@ -19,6 +20,7 @@ class Direction(IntFlag):
             return Direction.VERTICAL
         if self in Direction.HORIZONTAL:
             return Direction.HORIZONTAL
+        return Direction(0)
 
     @property
     def vector(self) -> Vector2:
