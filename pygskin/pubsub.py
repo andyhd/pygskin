@@ -1,26 +1,25 @@
 """Publish-Subscribe pattern."""
-from __future__ import annotations
-
 from collections.abc import Callable
+from functools import wraps
 from typing import Any
 
-from pygskin.utils import Decorator
+CANCEL = object()
 
 
-class Message(Decorator):
+def channel(fn: Callable | None = None) -> Callable:
     """
-    A message that can be subscribed to.
+    Returns message channel that can be subscribed to.
 
     Can be used as an object:
-    >>> msg = message()
-    >>> msg.subscribe(lambda x: print(f"subscriber 1: {x}"))
-    >>> msg.subscribe(lambda x: print(f"subscriber 2: {x}"))
-    >>> msg("foo")
-    subscriber 1: foo
-    subscriber 2: foo
+    >>> foo = channel()
+    >>> foo.subscribe(lambda x: print(f"subscriber 1: {x}"))
+    >>> foo.subscribe(lambda x: print(f"subscriber 2: {x}"))
+    >>> foo("bar")
+    subscriber 1: bar
+    subscriber 2: bar
 
     Can also be used as a decorator:
-    >>> @message
+    >>> @channel
     ... def foo(x):
     ...     print(f"decorated: {x}")
     >>> foo.subscribe(lambda x: print(f"subscriber: {x}"))
@@ -30,34 +29,43 @@ class Message(Decorator):
 
     And a method decorator:
     >>> class Foo:
-    ...     @message
+    ...     @channel
     ...     def bar(self, x):
     ...         print(f"decorated: {x}")
     >>> foo = Foo()
-    >>> foo.bar.subscribe(lambda x: print(f"subscriber: {x}"))
+    >>> foo.bar.subscribe(lambda self, x: print(f"subscriber: {x}"))
     >>> foo.bar("quux")
     subscriber: quux
     decorated: quux
+
+    A message can be cancelled by returning `message.cancel` from a subscriber:
+    >>> foo = channel()
+    >>> foo.subscribe(lambda x: print(f"subscriber 1: {x}") or foo.cancel)
+    >>> foo.subscribe(lambda x: print(f"subscriber 2: {x}"))
+    >>> foo("bar")
+    subscriber 1: bar
     """
 
-    CANCEL = object()
+    subscribers: list[Callable] = []
 
-    def __init__(self, callback: Callable | None = None, obj: Any = None) -> None:
-        super().__init__(callback, obj=obj)
-        self.subscribers: list[Callable] = []
+    def subscribe(subscriber: Callable) -> None:
+        """Subscribe to the message."""
+        subscribers.append(subscriber)
 
-    def call_function(self, *args, **kwargs) -> Any:
+    def wrapper(*args, **kwargs) -> Any:
         """Publish the message."""
         cancelled = False
-        for subscriber in self.subscribers:
+        for subscriber in subscribers:
             if not cancelled:
-                cancelled = subscriber(*args, **kwargs) == Message.CANCEL
-        if self.fn and not cancelled:
-            self.fn(*args, **kwargs)
+                cancelled = subscriber(*args, **kwargs) == CANCEL
+        if fn and not cancelled:
+            return fn(*args, **kwargs)
 
-    def subscribe(self, subscriber: Callable) -> None:
-        """Subscribe to the message."""
-        self.subscribers.append(subscriber)
+    if fn:
+        wrapper = wraps(fn)(wrapper)
 
+    wrapper.subscribe = subscribe  # type: ignore
+    wrapper.cancel = CANCEL  # type: ignore
 
-message = Message
+    return wrapper
+

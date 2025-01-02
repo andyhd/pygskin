@@ -1,95 +1,172 @@
 # Pygskin
 
-A wrapper around Pygame
+A collection of useful functions and classes for Pygame
 
-## `animation.py`
-`KeyframeAnimation` maps time to key frames and allows lerping with easing
-functions to interpolate frames.
+## `animate` function
+Animation generator function which takes a list of frames or mapping of
+quotients (0.0 - 1.0) to keyframes and a function that returns a quotient, and
+returns an generator that returns frames.
+```python
+anim = animate([image1, image2], timer.quotient)
+screen.blit(next(anim), (0, 0))
+```
+TODO
+* [ ] Support `duration` and `loop_count` arguments
+* [ ] `send` delta time to the generator?
 
-`AnimationPlayer` start, stop, pause and resume animations
 
-## `assets.py`
-`Assets` provides attribute access to asset files and batch loading
-Eg:
+## `Assets` class
+Provides attribute access to asset files and batch loading
 ```python
 assets = Assets()
-display.blit(assets.player, (0, 0))
+screen.blit(assets.player, (0, 0))
 assets.player_spawn_sfx.play()
 ```
-TODO - progress bar via custom events
+TODO
+* [ ] Wrap all assets with `LazyObject` to avoid loading assets at import time
 
-## `clock.py`
-ECS system for invoking callbacks on each frame
-TODO - does this need to be a System?
 
-## `dialogue.py`
-`Dialogue` parses a YAML script into a branching dialogue state machine
+## `Timer` class
+A countdown timer dataclass. Can be used with the `animate` function.
+```python
+timer = Timer(3000)  # 3 seconds
+timer.tick()
+if timer.finished:
+    timer.elapsed = 0  # loop
+```
 
-## `direction.py`
-`Direction` enum for simple up/down/left/right directions
 
-## `display.py`
-ECS system for drawing visible entities on the main display surface
-TODO - does this need to be a system?
+## `iter_dialogue` function
+Generator function for stepping through a dialogue script parsed from a JSON or
+YAML file.
+```python
+context = {}
+dialogue = iter_dialogue(
+    assets.act1_scene1,
+    context,
+    speak=speak,
+)
 
-## `easing.py`
-A selection of easing functions for use with interpolation
+def main_loop(screen, events, quit):
+    if action := next(dialogue, None):
+        action()
+```
 
-## `ecs.py`
-A simple ECS system. Systems can be classes or decorated functions. Entities are
-filtered using type hints or a function. Components can be anything.
 
-## `events.py`
-Event handlers are decorated functions, using type hints to register event types
-to handle. Event types wrap standard Pygame events. Custom events. ECS system
-dispatches events to handlers in entities.
+## `Direction` enum
+Enum for up/down/left/right directions
+```python
+direction = Direction.UP
+if direction in Direction.VERTICAL:
+    rect.move_ip(direction.vector)
+```
 
-## `gradient.py`
-Generate horizontal or vertical gradient filled surfaces
 
-## `grid.py`
-Utility class for grids.
+## `easing` module
+A selection of easing functions for use with interpolation. Can be used with the
+`animate` function.
 
-## gui.py
-GUI widgets
 
-## layout.py
-GUI layout algorithms
+## `get_ecs_update_fn` function
+An extremely simple ECS implementation.
+```python
+@filter_entities(has_velocity)
+def apply_velocity(entity):
+    entity.pos += entity.velocity
 
-## `parallax.py`
-Parallax scrolling
-TODO - Use LayeredUpdates
+ecs_update = get_ecs_update_fn([apply_velocity])
 
-## `particles.py`
-Particle system with gravity, drag, etc
-TODO - use OpenGL? prefill emitters
+@dataclass
+class Entity:
+    pos: Vector2
+    velocity: Vector2
 
-## `pubsub.py`
-Pub/sub messages as function decorators - subscribed callbacks triggered on
-function call
+ecs_update([Entity(pos=Vector2(0, 0), velocity=Vector2(1, 1)])
+```
 
-## `screen.py`
-Screen manager state machine
-TODO - transition animations (fade in/out, slide, wipe, etc)
 
-## `spritesheet.py`
-Spritesheet data structure from image and grid. Access individual
-sprites by (row, col) tuple index or string keys.
-TODO - spritesheet to animation
+## `run_game` function
+Pygbag compatible game loop.
+```python
+def main_loop(screen, events, quit):
+    screen.fill(random.choice(pygame.color.THECOLORS.values()))
 
-## `statemachine.py`
-State machine utility class
+    for event in events:
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+            quit()
 
-## `text.py`
-Generate surface from font (including bitmap font), with wrapping to width,
-alignment, padding. Dynamic text sprites.
-TODO - markdown? animation?
 
-## `utils.py`
-Image rotation function, misc
+if __name__ == '__main__':
+    run_game(Window("My Game", (WIDTH, HEIGHT)), main_loop)
+```
 
-## `window.py`
-Boilerplate game window class
+
+## `imgui` module
+Immediate mode GUI.
+```python
+gui = imgui.IMGUI()
+
+def main_loop(screen, events, quit):
+    with imgui.render(gui, screen) as render:
+        if render(imgui.button("Quit"), center=(100, 200)):
+            break
+```
+TODO
+* [ ] More widgets
+* [ ] Layouts
+
+
+## `channel` function
+Simple pubsub implementation.
+```python
+foo = channel()
+foo.subscribe(lambda x: print(f"subscriber 1: {x}"))
+foo("bar")
+```
+
+
+## `screen_manager` function
+Screen manager state machine.
+```python
+def main():
+    return screen_manager(
+        {
+            show_title: [start_level, enter_level_code],
+            show_code_prompt: [start_level, return_to_titles],
+            play_level: [end_level],
+            show_game_over: [return_to_titles],
+        }
+    )
+
+def show_main_menu(surface, events, screen_manager):
+    surface.blit(assets.main_menu, (0, 0))
+    for event in events:
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_RETURN:
+            screen_manager.send("start_level")
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_c:
+            screen_manager.send("enter_code")
+
+def start_level(input):
+    return play_level if input == "start_level" else None
+
+def enter_level_code(input):
+    return show_code_prompt if input == "enter_code" else None
+```
+TODO
+* [ ] Transition animations (fade in/out, slide, wipe, etc)
+* [ ] Less clunky transition functions
+
+
+## `statemachine` function
+State machine as generator.
+
+
+## `utils` module
+* `angle_between` function
+* `make_sprite` function
+* `make_color_gradient` function
+* `tile` function
+* `scroll_parallax_layers` function
 
 
 ## Other TODO
@@ -97,4 +174,3 @@ Boilerplate game window class
 * [ ] Configurable controls
 * [ ] Save / Load
 * [ ] Network
-* [ ] GUI

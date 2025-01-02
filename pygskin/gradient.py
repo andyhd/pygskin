@@ -1,35 +1,34 @@
-from __future__ import annotations
-
-from typing import Iterable
-
 import pygame
 from pygame import Surface
-from pygskin.direction import Direction
+from pygame.typing import ColorLike
+from pygame.typing import Point
 
 
-Colour = pygame.Color | str | int | tuple[int]
-Vector = Iterable[float]
+def make_color_gradient(
+    size: Point,
+    start: ColorLike,
+    end: ColorLike,
+    vertical: bool = True,
+    invert: bool = False,
+) -> Surface:
+    width, height = int(size[0]), int(size[1])
 
+    if vertical:
+        positions = zip([0] * height, range(height))
+        stripe = Surface((1, height), pygame.SRCALPHA)
+        quotient = 1 / height
+    else:
+        positions = zip(range(width), [0] * width)
+        stripe = Surface((width, 1), pygame.SRCALPHA)
+        quotient = 1 / width
 
-class Gradient:
-    def __init__(self, start: Colour, end: Colour) -> None:
-        self.start = pygame.Color(start)
-        self.end = pygame.Color(end)
+    stripe.fill((0, 0, 0, 0))
 
-    def fill(self, size: Vector, direction: Direction = Direction.DOWN) -> Surface:
-        start, end = self.start, self.end
-        width, height = size
-        if direction in Direction.HORIZONTAL:
-            positions = zip(range(width), [0] * width)
-            size = (width, 1)
-            quotient = 1 / width
-        else:
-            positions = zip([0] * height, range(height))
-            size = (1, height)
-            quotient = 1 / height
-        if direction in (Direction.UP, Direction.LEFT):
-            start, end = end, start
-        surface = Surface(size).convert_alpha()
-        for i, pos in enumerate(positions):
-            surface.set_at(pos, start.lerp(end, i * quotient))
-        return pygame.transform.scale(surface, (width, height))
+    if invert:
+        start, end = end, start
+
+    for i, pos in enumerate(positions):
+        stripe.set_at(pos, pygame.Color(start).lerp(pygame.Color(end), i * quotient))
+
+    return pygame.transform.scale(stripe, (width, height))
+
