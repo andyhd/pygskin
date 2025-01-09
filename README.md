@@ -174,6 +174,23 @@ foo("bar")
 ```
 
 
+## `get_rect_attrs` function
+Filter rect attributes (eg `top`, `center`, `size`) from a dictionary. Useful
+for passing kwargs to `pygame.Rect.move_to` or `pygame.Surface.get_rect`.
+```python
+def foo(image: Surface, **kwargs):
+    image_rect = image.get_rect(**get_rect_attrs(kwargs))
+```
+
+
+## `add_padding` function
+Add padding of varying amounts to a Rect.
+```python
+rect = add_padding(Rect(0, 0, 10, 10), [100, 50, 10, 5])
+assert rect.size == (120, 65)
+```
+
+
 ## `screen_manager` function
 Screen manager state machine.
 ```python
@@ -206,8 +223,72 @@ TODO
 * [ ] Less clunky transition functions
 
 
+## `Spritesheet` class
+Provides item access to a spritesheet image where sprites are arranged in a grid.
+```python
+spritesheet = Spritesheet("foo.png", rows=3, cols=4))
+screen.blit(spritesheet[(2, 1], (0, 0))
+walk_frames = [spritesheet[(0, i)] for i in range(4)]
+walk_anim = animate(walk_frames, timer.quotient)
+```
+TODO
+* [ ] Slice support for ranges
+
+
 ## `statemachine` function
 State machine as generator.
+
+
+## `get_styles` function
+Simple cascading style sheet engine. Filters styles by object type, class and id
+attributes.
+```python
+stylesheet = {
+    "Button": {
+        "color": "black",
+        "background-color": "grey",
+    },
+    "Button#quit": {
+        "background-color": "red",
+    },
+}
+Button = namedtuple("Button", ["id"])
+styles = get_styles(stylesheet, Button(id="quit"))
+assert styles == {"color": "black", "background-color": "red"}
+```
+
+
+## `make_sprite` function
+Create a sprite from an image.
+```python
+player = make_sprite(assets.player, center=player_pos)
+```
+
+
+## `rotate_surface` function
+Rotate a surface in place or around a specified point.
+```python
+rotated_image = rotate_surface(image, angle, center=(0, 0))
+```
+
+
+## `to_snakecase` and `snakecase_to_capwords` functions
+Convert between snake_case and CapWords.
+
+
+## `speech_duration` function
+Calculate rough speech duration in seconds.
+
+
+## `tile` function
+Generate a blit sequence to tile an image across a surface.
+```python
+screen.blits(tile(screen.get_rect(), assets.grass))
+```
+
+
+## `angle_between` function
+Calculate the angle between two points.
 
 
 ## Other TODO
