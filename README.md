@@ -85,6 +85,14 @@ ecs_update([Entity(pos=Vector2(0, 0), velocity=Vector2(1, 1)])
 ```
 
 
+## `bind` function
+Partial function application with one or more argument placeholders at arbitrary
+positions.
+```python
+foos = filter(bind(isinstance, ..., Foo), items)
+```
+
+
 ## `run_game` function
 Pygbag compatible game loop.
 ```python
@@ -101,6 +109,22 @@ if __name__ == '__main__':
 ```
 
 
+## `make_color_gradient` function
+Generate a color gradient between two colors.
+```python
+sky_image = make_color_gradient(screen.size, "white", "blue")
+screen.blit(sky_image, (0, 0))
+```
+
+
+## `rhash`/`unrhash` functions
+Simple reversible hash function for generating unique IDs.
+```python
+id = rhash("foo")
+assert unrhash(id) == "foo"
+```
+
+
 ## `imgui` module
 Immediate mode GUI.
 ```python
@@ -114,6 +138,31 @@ def main_loop(screen, events, quit):
 TODO
 * [ ] More widgets
 * [ ] Layouts
+
+
+## `LazyObject` class
+Lazy loading object proxy.
+```python
+image = LazyObject(lambda: pygame.image.load("foo.png"))
+screen.blit(image, (0, 0))
+```
+
+
+## `scroll_parallax_layers` function
+Scroll parallax layers at different rates.
+```python
+background = LayeredUpdates()
+background.add(assets.sky, layer=0)
+background.add(assets.mountains, layer=1)
+background.add(assets.trees, layer=2)
+
+scroll_parallax_layers(
+    (vx, vy),
+    background.layers,
+    background.get_sprites_from_layer,
+    {0: 0, 1: 1.5, 2: 2.0},
+)
+```
 
 
 ## `channel` function
@@ -159,14 +208,6 @@ TODO
 
 ## `statemachine` function
 State machine as generator.
-
-
-## `utils` module
-* `angle_between` function
-* `make_sprite` function
-* `make_color_gradient` function
-* `tile` function
-* `scroll_parallax_layers` function
 
 
 ## Other TODO
