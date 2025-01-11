@@ -2,6 +2,7 @@ import contextlib
 import inspect
 from dataclasses import dataclass
 from dataclasses import field
+from enum import Enum
 from typing import Any
 
 import pygame
@@ -18,6 +19,10 @@ SCROLLABLE = 8
 HAS_BORDER = 16
 HAS_BACKGROUND = 32
 HAS_SHADOW = 64
+
+
+Align = Enum("Align", "left center right")
+VAlign = Enum("VAlign", "top middle bottom")
 
 
 @dataclass
@@ -81,10 +86,10 @@ class radio(Widget):  # noqa
                 right=self.rect.x - 5,
                 y=self.rect.y - self.rect.height * 0.1,
             )
-            pygame.draw.rect(surface, style.get('border_color', "white"), box, 1)
+            pygame.draw.rect(surface, style.get("border_color", "white"), box, 1)
             if checked:
                 check = pygame.FRect(box).scale_by(0.5)
-                pygame.draw.rect(surface, style.get('border_color', "white"), check)
+                pygame.draw.rect(surface, style.get("border_color", "white"), check)
         draw_widget_text(surface, self, **style)
 
 
@@ -162,7 +167,7 @@ def get_widget_rect(widget: Widget, **kwargs) -> pygame.Rect:
             )
             widget.rect.size = font.size("".join(widget.value))
         if padding := kwargs.get("padding"):
-            widget.rect = add_padding(widget.rect, padding)
+            widget.rect, _ = add_padding(widget.rect, padding)
     if rect_kwargs := get_rect_attrs(kwargs):
         widget.rect = widget.rect.move_to(**rect_kwargs)
     return widget.rect
@@ -179,7 +184,7 @@ def draw_widget_background(surface: pygame.Surface, widget: Widget, **style) -> 
             color,
             widget.rect,
             width=0,
-            border_radius=style.get('border_radius', 0),
+            border_radius=style.get("border_radius", 0),
         )
 
 
@@ -187,10 +192,10 @@ def draw_widget_border(surface: pygame.Surface, widget: Widget, **style) -> None
     if widget.flags & HAS_BORDER and widget.rect:
         pygame.draw.rect(
             surface,
-            style.get('border_color', "white"),
+            style.get("border_color", "white"),
             widget.rect,
-            width=style.get('border_width', 1),
-            border_radius=style.get('border_radius', 0),
+            width=style.get("border_width", 1),
+            border_radius=style.get("border_radius", 0),
         )
 
 
@@ -198,10 +203,10 @@ def draw_widget_focus(surface: pygame.Surface, widget: Widget, **style) -> None:
     if widget.rect:
         pygame.draw.rect(
             surface,
-            style.get('focus_border_color', "red"),
+            style.get("focus_border_color", "red"),
             widget.rect.inflate(4, 4),
-            width=style.get('focus_border_width', 4),
-            border_radius=style.get('focus_border_radius', 0),
+            width=style.get("focus_border_width", 4),
+            border_radius=style.get("focus_border_radius", 0),
         )
 
 
@@ -221,7 +226,23 @@ def draw_widget_text(surface: pygame.Surface, widget: Widget, **style) -> None:
     )
     color = style.get("color", "white")
     label = font.render(text, True, color)
-    surface.blit(label, label.get_rect(topleft=widget.rect.topleft))
+    rect = label.get_rect(center=widget.rect.center)
+    match Align[style.get("align", "center")]:
+        case Align.left:
+            rect.left = widget.rect.left
+        case Align.right:
+            rect.right = widget.rect.right
+        case _:
+            rect.centerx = widget.rect.centerx
+    match VAlign[style.get("valign", "middle")]:
+        case VAlign.top:
+            rect.top = widget.rect.top
+        case VAlign.bottom:
+            rect.bottom = widget.rect.bottom
+        case _:
+            rect.centery = widget.rect.centery
+    _, rect = add_padding(rect, style.get("padding", 0))
+    surface.blit(label, rect)
 
 
 def handle_keys(widget: Widget, ui: IMGUI) -> None:
@@ -241,4 +262,3 @@ def handle_keys(widget: Widget, ui: IMGUI) -> None:
         if widget.flags & EDITABLE and 32 <= event.key < 127 and len(widget.value) < 30:
             widget.value.append(event.unicode)
             widget.triggered = True
-
