@@ -6,7 +6,7 @@ from collections.abc import Iterator
 from functools import partial
 from itertools import pairwise
 
-from pygskin import statemachine
+from pygskin.statemachine import statemachine
 
 Action = Callable[[], None]
 Dialogue = dict[str, list[dict]]

@@ -5,7 +5,7 @@ from typing import Any
 import pygame
 from pygame.event import Event
 
-from pygskin import statemachine
+from pygskin.statemachine import statemachine
 
 
 class ScreenManager:
