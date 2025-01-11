@@ -23,7 +23,6 @@ from pygskin.pubsub import channel
 from pygskin.rect import add_padding
 from pygskin.rect import get_rect_attrs
 from pygskin.screen import ScreenFn
-from pygskin.screen import ScreenManager
 from pygskin.screen import screen_manager
 from pygskin.spritesheet import Spritesheet
 from pygskin.statemachine import statemachine
@@ -44,7 +43,6 @@ __all__ = [
     "FilterFn",
     "LerpFn",
     "ScreenFn",
-    "ScreenManager",
     "Spritesheet",
     "SystemFn",
     "Timer",
