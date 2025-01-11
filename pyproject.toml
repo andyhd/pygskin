@@ -13,14 +13,12 @@ extend-immutable-calls = []
 [tool.ruff.isort]
 force-single-line = true
 
-[tool.hatch]
-
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [tool.hatch.version]
-path = "pygskin/__init__.py"
+source = "vcs"
 
 [project]
 name = "Pygskin"
