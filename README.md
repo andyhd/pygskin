@@ -91,12 +91,12 @@ foos = filter(bind(isinstance, ..., Foo), items)
 ## [`run_game` function](pygskin/game.py)
 Pygbag compatible game loop.
 ```python
-def main_loop(screen, events, quit):
+def main_loop(screen, events, exit):
     screen.fill(random.choice(pygame.color.THECOLORS.values()))
 
     for event in events:
         if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-            quit()
+            exit()
 
 
 if __name__ == '__main__':
@@ -178,8 +178,10 @@ def foo(image: Surface, **kwargs):
 ## [`add_padding` function](pygskin/rect.py)
 Add padding of varying amounts to a Rect.
 ```python
-rect = add_padding(Rect(0, 0, 10, 10), [100, 50, 10, 5])
-assert rect.size == (120, 65)
+top, right, bottom, left = [100, 50, 10, 5]
+padded, rect = add_padding(Rect(0, 0, 10, 10), [top, right, bottom, left])
+assert padded.size == (120, 65)
+assert rect.topleft == (5, 100)
 ```
 
 
@@ -196,13 +198,13 @@ def main():
         }
     )
 
-def show_main_menu(surface, events, screen_manager):
+def show_main_menu(surface, events, exit):
     surface.blit(assets.main_menu, (0, 0))
     for event in events:
         if event.type == pygame.KEYDOWN and event.key == pygame.K_RETURN:
-            screen_manager.send("start_level")
+            exit("start_level")
         if event.type == pygame.KEYDOWN and event.key == pygame.K_c:
-            screen_manager.send("enter_code")
+            exit("enter_code")
 
 def start_level(input):
     return play_level if input == "start_level" else None
@@ -228,20 +230,26 @@ State machine as generator.
 
 ## [`get_styles` function](pygskin/stylesheet.py)
 Simple cascading style sheet engine. Filters styles by object type, class and id
-attributes.
+attributes. Can be used with imgui module.
+```yaml
+# styles.yaml
+"*":
+  color: black
+  background_color: grey
+
+"#error":
+  background_color: red
+```
 ```python
-stylesheet = {
-    "Button": {
-        "color": "black",
-        "background-color": "grey",
-    },
-    "Button#quit": {
-        "background-color": "red",
-    },
-}
-Button = namedtuple("Button", ["id"])
-styles = get_styles(stylesheet, Button(id="quit"))
-assert styles == {"color": "black", "background-color": "red"}
+# cascading styles
+stylesheet = partial(get_styles, assets.styles)
+Foo = namedtuple("Foo", ["id"])
+styles = stylesheet(Foo(id="error"))
+assert styles["background_color"] == "red"
+
+# use with imgui
+with imgui.render(gui, surface, stylesheet) as render:
+    render(imgui.button("Click me!"), center=(100, 100))
 ```
 
 
