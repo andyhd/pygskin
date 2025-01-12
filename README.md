@@ -2,7 +2,7 @@
 
 A collection of useful functions and classes for Pygame
 
-## `animate` function
+## [`animate` function](pygskin/animation.py)
 Animation generator function which takes a list of frames or mapping of
 quotients (0.0 - 1.0) to keyframes and a function that returns a quotient, and
 returns an generator that returns frames.
@@ -10,23 +10,18 @@ returns an generator that returns frames.
 anim = animate([image1, image2], timer.quotient)
 screen.blit(next(anim), (0, 0))
 ```
-TODO
-* [ ] Support `duration` and `loop_count` arguments
-* [ ] `send` delta time to the generator?
 
 
-## `Assets` class
+## [`Assets` class](pygskin/assets.py)
 Provides attribute access to asset files and batch loading
 ```python
 assets = Assets()
 screen.blit(assets.player, (0, 0))
 assets.player_spawn_sfx.play()
 ```
-TODO
-* [ ] Wrap all assets with `LazyObject` to avoid loading assets at import time
 
 
-## `Timer` class
+## [`Timer` class](pygskin/timer.py)
 A countdown timer dataclass. Can be used with the `animate` function.
 ```python
 timer = Timer(3000)  # 3 seconds
@@ -36,7 +31,7 @@ if timer.finished:
 ```
 
 
-## `iter_dialogue` function
+## [`iter_dialogue` function](pygskin/dialogue.py)
 Generator function for stepping through a dialogue script parsed from a JSON or
 YAML file.
 ```python
@@ -53,7 +48,7 @@ def main_loop(screen, events, quit):
 ```
 
 
-## `Direction` enum
+## [`Direction` enum](pygskin/direction.py)
 Enum for up/down/left/right directions
 ```python
 direction = Direction.UP
@@ -62,12 +57,12 @@ if direction in Direction.VERTICAL:
 ```
 
 
-## `easing` module
+## [`easing` module](pygskin/easing.py)
 A selection of easing functions for use with interpolation. Can be used with the
 `animate` function.
 
 
-## `get_ecs_update_fn` function
+## [`get_ecs_update_fn` function](pygskin/ecs.py)
 An extremely simple ECS implementation.
 ```python
 @filter_entities(has_velocity)
@@ -85,7 +80,7 @@ ecs_update([Entity(pos=Vector2(0, 0), velocity=Vector2(1, 1)])
 ```
 
 
-## `bind` function
+## [`bind` function](pygskin/func.py)
 Partial function application with one or more argument placeholders at arbitrary
 positions.
 ```python
@@ -93,7 +88,7 @@ foos = filter(bind(isinstance, ..., Foo), items)
 ```
 
 
-## `run_game` function
+## [`run_game` function](pygskin/game.py)
 Pygbag compatible game loop.
 ```python
 def main_loop(screen, events, quit):
@@ -109,7 +104,7 @@ if __name__ == '__main__':
 ```
 
 
-## `make_color_gradient` function
+## [`make_color_gradient` function](pygskin/gradient.py)
 Generate a color gradient between two colors.
 ```python
 sky_image = make_color_gradient(screen.size, "white", "blue")
@@ -117,7 +112,7 @@ screen.blit(sky_image, (0, 0))
 ```
 
 
-## `rhash`/`unrhash` functions
+## [`rhash`/`unrhash` functions](pygskin/hash.py)
 Simple reversible hash function for generating unique IDs.
 ```python
 id = rhash("foo")
@@ -125,7 +120,7 @@ assert unrhash(id) == "foo"
 ```
 
 
-## `imgui` module
+## [`imgui` module](pygskin/imgui.py)
 Immediate mode GUI.
 ```python
 gui = imgui.IMGUI()
@@ -135,12 +130,9 @@ def main_loop(screen, events, quit):
         if render(imgui.button("Quit"), center=(100, 200)):
             break
 ```
-TODO
-* [ ] More widgets
-* [ ] Layouts
 
 
-## `LazyObject` class
+## [`LazyObject` class](pygskin/lazy.py)
 Lazy loading object proxy.
 ```python
 image = LazyObject(lambda: pygame.image.load("foo.png"))
@@ -148,7 +140,7 @@ screen.blit(image, (0, 0))
 ```
 
 
-## `scroll_parallax_layers` function
+## [`scroll_parallax_layers` function](pygskin/parallax.py)
 Scroll parallax layers at different rates.
 ```python
 background = LayeredUpdates()
@@ -165,7 +157,7 @@ scroll_parallax_layers(
 ```
 
 
-## `channel` function
+## [`channel` function](pygskin/pubsub.py)
 Simple pubsub implementation.
 ```python
 foo = channel()
@@ -174,7 +166,7 @@ foo("bar")
 ```
 
 
-## `get_rect_attrs` function
+## [`get_rect_attrs` function](pygskin/rect.py)
 Filter rect attributes (eg `top`, `center`, `size`) from a dictionary. Useful
 for passing kwargs to `pygame.Rect.move_to` or `pygame.Surface.get_rect`.
 ```python
@@ -183,7 +175,7 @@ def foo(image: Surface, **kwargs):
 ```
 
 
-## `add_padding` function
+## [`add_padding` function](pygskin/rect.py)
 Add padding of varying amounts to a Rect.
 ```python
 rect = add_padding(Rect(0, 0, 10, 10), [100, 50, 10, 5])
@@ -191,7 +183,7 @@ assert rect.size == (120, 65)
 ```
 
 
-## `screen_manager` function
+## [`screen_manager` function](pygskin/screen.py)
 Screen manager state machine.
 ```python
 def main():
@@ -218,12 +210,9 @@ def start_level(input):
 def enter_level_code(input):
     return show_code_prompt if input == "enter_code" else None
 ```
-TODO
-* [ ] Transition animations (fade in/out, slide, wipe, etc)
-* [ ] Less clunky transition functions
 
 
-## `Spritesheet` class
+## [`Spritesheet` class](pygskin/spritesheet.py)
 Provides item access to a spritesheet image where sprites are arranged in a grid.
 ```python
 spritesheet = Spritesheet("foo.png", rows=3, cols=4))
@@ -231,15 +220,13 @@ screen.blit(spritesheet[(2, 1], (0, 0))
 walk_frames = [spritesheet[(0, i)] for i in range(4)]
 walk_anim = animate(walk_frames, timer.quotient)
 ```
-TODO
-* [ ] Slice support for ranges
 
 
-## `statemachine` function
+## [`statemachine` function](pygskin/statemachine.py)
 State machine as generator.
 
 
-## `get_styles` function
+## [`get_styles` function](pygskin/stylesheet.py)
 Simple cascading style sheet engine. Filters styles by object type, class and id
 attributes.
 ```python
@@ -258,41 +245,34 @@ assert styles == {"color": "black", "background-color": "red"}
 ```
 
 
-## `make_sprite` function
+## [`make_sprite` function](pygskin/surface.py)
 Create a sprite from an image.
 ```python
 player = make_sprite(assets.player, center=player_pos)
 ```
 
 
-## `rotate_surface` function
+## [`rotate_surface` function](pygskin/surface.py)
 Rotate a surface in place or around a specified point.
 ```python
 rotated_image = rotate_surface(image, angle, center=(0, 0))
 ```
 
 
-## `to_snakecase` and `snakecase_to_capwords` functions
+## [`to_snakecase` and `snakecase_to_capwords` functions](pygskin/text.py)
 Convert between snake_case and CapWords.
 
 
-## `speech_duration` function
+## [`speech_duration` function](pygskin/text.py)
 Calculate rough speech duration in seconds.
 
 
-## `tile` function
+## [`tile` function](pygskin/tile.py)
 Generate a blit sequence to tile an image across a surface.
 ```python
 screen.blits(tile(screen.get_rect(), assets.grass))
 ```
 
 
-## `angle_between` function
+## [`angle_between` function](pygskin/vector.py)
 Calculate the angle between two points.
-
-
-## Other TODO
-
-* [ ] Configurable controls
-* [ ] Save / Load
-* [ ] Network
