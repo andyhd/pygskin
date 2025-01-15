@@ -1,28 +1,67 @@
-from __future__ import annotations
-
 import inspect
+import json
+from collections import UserDict
+from collections.abc import Callable
+from collections.abc import Iterator
+from functools import cache
 from pathlib import Path
 from typing import Any
 
 import pygame
 
-
-class Asset:
-    """Base class for assets."""
-
-    suffixes: set[str] = set()
-    _class_by_suffix: dict[str, type[Asset]] = {}
-
-    def __init_subclass__(cls, **kwargs) -> None:
-        super().__init_subclass__(**kwargs)
-        Asset._class_by_suffix.update({suffix: cls for suffix in cls.suffixes})
-
-    @classmethod
-    def load(cls, path: Path) -> Any:
-        raise NotImplementedError
+type Asset = Any  # type: ignore
 
 
-class Assets(Asset):
+def load_font(path: Path):
+    return cache(lambda size=30: pygame.font.Font(path, size))
+
+
+def load_json(path: Path):
+    return json.loads(path.read_text())
+
+
+def load_yaml(path: Path):
+    import yaml
+
+    return yaml.safe_load(path.read_text())
+
+
+LOADERS: dict[str, Callable] = {
+    **{_: pygame.image.load for _ in {".png", ".jpg", ".jpeg", ".gif"}},
+    **{_: pygame.mixer.Sound for _ in {".wav", ".mp3", ".ogg"}},
+    **{_: load_font for _ in {".ttf"}},
+    **{_: load_yaml for _ in {".yaml", ".yml"}},
+    **{_: load_json for _ in {".json"}},
+}
+
+
+def get_assets_path_from_caller_frame() -> Path:
+    try:
+        return Path(inspect.stack()[2].filename).parent / "assets"
+    except IndexError:
+        return Path("assets")
+
+
+def find_assets_by_name(path: Path, name: str) -> Iterator[Path]:
+    yield from sorted(
+        (m for m in path.glob(f"{name}*.*") if m.suffix in LOADERS),
+        # shortest match first
+        key=lambda _: len(str(_)),
+    )
+
+
+def get_asset(path: Path, name: str) -> Asset:
+    match next(find_assets_by_name(path.parent, name), None):
+        case Path() as p if p.is_dir():
+            asset = Assets(p)
+        case Path() as p:
+            asset = LOADERS[p.suffix](p)
+        case None:
+            raise LookupError(f"Asset not found: {path / name}")
+    return asset
+
+
+class Assets(UserDict):
     """
     Provides attribute access to static assets in a directory.
 
@@ -38,110 +77,34 @@ class Assets(Asset):
     """
 
     def __init__(self, path: str | Path | None = None) -> None:
-        if path is None:
-            # Find the path of the calling script.
-            path = Path(inspect.stack()[1].filename).parent / "assets"
-            if not path.is_file():
-                path = Path("assets")
-        self.path = Path(path)
-
-    def __getattr__(self, name: str) -> Asset:
-        """Load the asset with the given name."""
-        matches = sorted(
-            (
-                path
-                for path in self.path.glob(f"{name}*.*")
-                if path.suffix in Asset._class_by_suffix
-            ),
-            key=lambda p: len(str(p)),
-        )
-
-        path = next(iter(matches), None)
-
-        if path is None:
-            raise AttributeError(f"Asset not found: {self.path / name}")
-
-        if path.is_dir():
-            asset = Assets(path)
-        else:
-            asset = Asset._class_by_suffix[path.suffix].load(path)
-
-        setattr(self, name, asset)
-        self.__annotations__[name] = type(asset)
-        return asset
+        super().__init__()
+        match path:
+            case Path():
+                ...
+            case str(s):
+                path = Path(s)
+            case None:
+                path = get_assets_path_from_caller_frame()
+            case _:
+                raise TypeError(f"Expected Path or str, got {type(path)}")
+        if not path.is_dir():
+            raise ValueError(f"Path does not exist: {path}")
+        self.__dict__["path"] = path
 
     def __getitem__(self, name: str) -> Asset:
-        try:
-            return getattr(self, name)
-        except AttributeError as attr_error:
-            raise KeyError(name) from attr_error
+        if not (asset := self.data.get(name)):
+            try:
+                asset = self.data[name] = get_asset(self.__dict__["path"] / name, name)
+            except LookupError as e:
+                raise KeyError(name) from e
+        return asset
 
-    def __setattr__(self, name: str, value: Any) -> None:
-        super().__setattr__(name, value)
+    def __getattr__(self, name: str) -> Asset:
+        try:
+            return self[name]
+        except KeyError as e:
+            raise AttributeError from e
 
     def load_all(self) -> None:
-        """Load all the assets in the directory."""
         for child in list(self.path.iterdir()):
             self[child.stem]
-
-
-class Image(Asset):
-    """An image asset."""
-
-    suffixes = {".png", ".jpg", ".jpeg", ".gif"}
-
-    @classmethod
-    def load(cls, path: Path) -> pygame.Surface:
-        pygame.display.init()
-        return pygame.image.load(path)
-
-
-class Sound(Asset):
-    """A sound asset."""
-
-    suffixes = {".wav", ".mp3", ".ogg"}
-
-    @classmethod
-    def load(cls, path: Path) -> pygame.mixer.Sound:
-        pygame.mixer.init()
-        return pygame.mixer.Sound(path)
-
-    @classmethod
-    def stream(cls, path: Path) -> Any:
-        pygame.mixer.init()
-        pygame.mixer.music.load(path)
-        return pygame.mixer.music
-
-
-class Font(Asset):
-    """A font asset."""
-
-    suffixes = {".ttf"}
-
-    class _Font:
-        def __init__(self, path: Path) -> None:
-            self.path = path
-            self.cache: dict[int, pygame.font.Font] = {}
-
-        def size(self, size: int = 30) -> pygame.font.Font:
-            return self.cache.setdefault(
-                size,
-                pygame.font.Font(self.path, size),
-            )
-
-    @classmethod
-    def load(cls, path: Path) -> _Font:
-        pygame.font.init()
-        return Font._Font(path)
-
-
-class YAML(Asset):
-    """A YAML asset."""
-
-    suffixes = {".yaml", ".yml"}
-
-    @classmethod
-    def load(cls, path: Path) -> Any:
-        import yaml
-
-        return yaml.safe_load(path.read_text())
