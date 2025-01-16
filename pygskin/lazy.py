@@ -1,12 +1,13 @@
 from collections.abc import Callable
 from functools import cache
+from typing import Any
 from typing import Generic
 from typing import TypeVar
 
 T = TypeVar("T")
 
 
-class LazyObject(Generic[T]):
+class lazy(Generic[T]):  # noqa: N801
     """A lazy object.
 
     This class is used to defer loading of an object until it is accessed.
@@ -16,7 +17,7 @@ class LazyObject(Generic[T]):
     ...         print("Foo.__init__ called")
     ...         self.bar = 42
     ...
-    >>> lazy_foo = LazyObject(Foo)
+    >>> lazy_foo = lazy(Foo)
     >>> lazy_foo.bar
     Foo.__init__ called
     42
@@ -24,6 +25,8 @@ class LazyObject(Generic[T]):
     42
     >>> isinstance(lazy_foo, Foo)
     True
+    >>> type(lazy_foo)
+    <class 'pygskin.lazy.lazy'>
     """
 
     def __init__(self, loader: Callable[[], T]) -> None:
@@ -33,10 +36,10 @@ class LazyObject(Generic[T]):
     def _load(self) -> T:
         return self._loader()
 
-    def __getattr__(self, name: str) -> T:
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._load(), name)
 
-    def __setattr__(self, name: str, value: T) -> None:
+    def __setattr__(self, name: str, value: Any) -> None:
         if name.startswith("_load"):
             return super().__setattr__(name, value)
         setattr(self._load(), name, value)
@@ -58,8 +61,3 @@ class LazyObject(Generic[T]):
     @__class__.setter
     def __class__(self, cls: type) -> None:
         pass
-
-
-def lazy(loader: Callable[[], T]) -> LazyObject[T]:
-    """Return a lazy object."""
-    return LazyObject(loader)
