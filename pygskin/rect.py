@@ -1,6 +1,9 @@
+from collections.abc import Callable
 from collections.abc import Sequence
+from typing import overload
 
 from pygame import Rect
+from pygame.typing import IntPoint
 
 RECT_ATTRS = """
     x y
@@ -42,3 +45,43 @@ def add_padding(
             )
 
     raise ValueError("Invalid padding")
+
+
+def grid(
+    rect: Rect,
+    rows: int = 1,
+    columns: int = 1,
+    names: dict[str, IntPoint] | None = None,
+) -> Callable[..., Rect]:
+    """Return a function to access cells in a grid of rectangles.
+
+    >>> rect = Rect(0, 0, 100, 50)
+    >>> get_cell = grid(rect, rows=2, columns=4, names={"foo": (3, 1)})
+    >>> get_cell(1, 1)
+    Rect(25, 25, 25, 25)
+    >>> get_cell("foo")
+    Rect(75, 25, 25, 25)
+    """
+
+    cellw, cellh = rect.width // columns, rect.height // rows
+
+    @overload
+    def get_cell(key: str) -> Rect: ...
+
+    @overload
+    def get_cell(column: int, row: int) -> Rect: ...
+
+    def get_cell(*args, **kwargs) -> Rect:
+        match args:
+            case (str(key),) if names and key in names:
+                coord = names[key]
+                column, row = coord[0], coord[1]
+            case (int(column), int(row)):
+                ...
+            case _:
+                raise KeyError(*args)
+        if not (0 <= column < columns and 0 <= row < rows):
+            raise KeyError(*args)
+        return Rect(column * cellw, row * cellh, cellw, cellh)
+
+    return get_cell
