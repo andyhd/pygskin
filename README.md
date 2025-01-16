@@ -185,6 +185,20 @@ assert rect.topleft == (5, 100)
 ```
 
 
+## [`grid` function](pygskin/rect.py)
+Divide a Rect into a specified number of rows and columns, and return a function
+to access the cells by row/column index, or string aliases.
+```python
+get_cell = grid(
+    Rect(0, 0, 100, 100),
+    rows=2,
+    cols=2,
+    names={"nw": (0, 0), "ne": (1, 0), "sw": (0, 1), "se": (1, 1)},
+)
+assert get_cell("ne") == get_cell(1, 0) == Rect(50, 0, 50, 50)
+```
+
+
 ## [`screen_manager` function](pygskin/screen.py)
 Screen manager state machine.
 ```python
@@ -214,12 +228,12 @@ def enter_level_code(input):
 ```
 
 
-## [`Spritesheet` class](pygskin/spritesheet.py)
-Provides item access to a spritesheet image where sprites are arranged in a grid.
+## [`spritesheet` function](pygskin/spritesheet.py)
+Provides grid cell access to a spritesheet image.
 ```python
-spritesheet = Spritesheet("foo.png", rows=3, cols=4))
-screen.blit(spritesheet[(2, 1], (0, 0))
-walk_frames = [spritesheet[(0, i)] for i in range(4)]
+get_sprite = spritesheet(pygame.image.load("foo.png"), rows=3, cols=4)
+screen.blit(get_sprite(2, 1), (0, 0))
+walk_frames = [get_sprite(0, i) for i in range(4)]
 walk_anim = animate(walk_frames, timer.quotient)
 ```
 

@@ -22,9 +22,10 @@ from pygskin.parallax import scroll_parallax_layers
 from pygskin.pubsub import channel
 from pygskin.rect import add_padding
 from pygskin.rect import get_rect_attrs
+from pygskin.rect import grid
 from pygskin.screen import ScreenFn
 from pygskin.screen import screen_manager
-from pygskin.spritesheet import Spritesheet
+from pygskin.spritesheet import spritesheet
 from pygskin.statemachine import statemachine
 from pygskin.stylesheet import get_styles
 from pygskin.surface import make_sprite
@@ -43,7 +44,6 @@ __all__ = [
     "FilterFn",
     "LerpFn",
     "ScreenFn",
-    "Spritesheet",
     "SystemFn",
     "Timer",
     "add_padding",
@@ -56,6 +56,7 @@ __all__ = [
     "get_ecs_update_fn",
     "get_rect_attrs",
     "get_styles",
+    "grid",
     "imgui",
     "iter_dialogue",
     "lazy",
@@ -68,6 +69,7 @@ __all__ = [
     "scroll_parallax_layers",
     "snakecase_to_capwords",
     "speech_duration",
+    "spritesheet",
     "statemachine",
     "tile",
     "to_snakecase",
