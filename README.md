@@ -132,10 +132,10 @@ def main_loop(screen, events, quit):
 ```
 
 
-## [`LazyObject` class](pygskin/lazy.py)
+## [`lazy` class](pygskin/lazy.py)
 Lazy loading object proxy.
 ```python
-image = LazyObject(lambda: pygame.image.load("foo.png"))
+image = lazy(lambda: pygame.image.load("foo.png"))
 screen.blit(image, (0, 0))
 ```
 
