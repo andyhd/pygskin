@@ -1,3 +1,5 @@
+"""Rect utility functions."""
+
 from collections.abc import Callable
 from collections.abc import Sequence
 from typing import overload
@@ -17,6 +19,7 @@ RECT_ATTRS = """
 
 
 def get_rect_attrs(d: dict) -> dict:
+    """Return a dictionary with only the keys that are valid Rect attributes."""
     return {k: v for k, v in d.items() if k in RECT_ATTRS}
 
 
@@ -24,6 +27,7 @@ def add_padding(
     rect: Rect,
     padding: int | Sequence[int] = 0,
 ) -> tuple[Rect, Rect]:
+    """Add padding to a rectangle."""
     match padding:
         case int(px):
             return rect.inflate(px * 2, px * 2), rect.move(px, px)
@@ -71,7 +75,7 @@ def grid(
     @overload
     def get_cell(column: int, row: int) -> Rect: ...
 
-    def get_cell(*args, **kwargs) -> Rect:
+    def get_cell(*args, **_) -> Rect:
         match args:
             case (str(key),) if names and key in names:
                 coord = names[key]

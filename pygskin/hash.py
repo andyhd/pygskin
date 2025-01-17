@@ -1,3 +1,5 @@
+"""Reversible hashing functions for numbers."""
+
 import binascii
 import struct
 from base64 import b64decode
@@ -15,4 +17,3 @@ def unrhash(h: str) -> int:
         return struct.unpack("<q", b64decode(h + "AAAAA="))[0] * 703225629 % 1000000000
     except (struct.error, binascii.Error) as e:
         raise ValueError("Invalid hash") from e
-

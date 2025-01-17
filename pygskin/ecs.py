@@ -42,8 +42,8 @@ def get_ecs_update_fn(systems: list[SystemFn]) -> Callable:
         if getattr(system, "filtered", False):
             return system
 
-        if callable(filter := getattr(system, "filter_entities", None)):
-            return filter_entities(filter)(system)
+        if callable(filter_ := getattr(system, "filter_entities", None)):
+            return filter_entities(filter_)(system)
 
         entity_type = next(iter(get_type_hints(system).values()))
         return filter_entities(lambda _: isinstance(_, entity_type))(system)
@@ -57,4 +57,3 @@ def get_ecs_update_fn(systems: list[SystemFn]) -> Callable:
                 system_fn(entity, entities=entities, **kwargs)
 
     return ecs_update
-

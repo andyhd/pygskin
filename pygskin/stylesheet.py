@@ -1,3 +1,7 @@
+"""
+A simple CSS-like stylesheet parser.
+"""
+
 import re
 from dataclasses import dataclass
 from dataclasses import field

@@ -1,4 +1,5 @@
 """Easing functions."""
+
 import math
 
 
@@ -35,7 +36,7 @@ def expo_out(x: float) -> float:
 
 
 def expo_in_out(x: float) -> float:
-    if x == 0 or x == 1:
+    if x in {0, 1}:
         return x
     return 2 ** (20 * x - 10) / 2 if x < 0.5 else (2 - 2 ** (-20 * x + 10)) / 2
 

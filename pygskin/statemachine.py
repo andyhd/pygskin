@@ -1,8 +1,19 @@
+"""
+A state machine implemented with a coroutine.
+"""
+
 from collections.abc import Callable
 from collections.abc import Generator
 from typing import Any
+from typing import TypeVar
 
 RESET = object()
+T = TypeVar("T")
+
+
+def first_key(d: dict[T, Any]) -> T:
+    """Return the first key in a dictionary."""
+    return next(iter(d))
 
 
 def statemachine(
@@ -50,15 +61,17 @@ def statemachine(
     'unlocked'
     """
 
-    state = next(iter(transition_table))
+    reset = RESET
+    state = first_key(transition_table)
     while state:
-        input = yield state
-        if input is RESET:
-            state = next(iter(transition_table))
+        input_ = yield state
+        if input_ is reset:
+            state = first_key(transition_table)
             yield None
             continue
-        for transition in transition_table[state]:
-            if next_state := transition(input):
+        transitions = transition_table[state]
+        for transition in transitions:
+            if next_state := transition(input_):
                 state = next_state
                 break
 

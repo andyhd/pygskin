@@ -1,6 +1,9 @@
 [tool.black]
 extend-exclude = ""
 
+[tool.pylint]
+extension-pkg-allow-list = ["pygame"]
+
 [tool.ruff]
 extend-exclude = []
 extend-ignore = ["E203"]

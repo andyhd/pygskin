@@ -9,7 +9,7 @@ from typing import TypeVar
 from typing import cast
 from typing import runtime_checkable
 
-import pygame
+from pygame.math import clamp
 
 T = TypeVar("T")
 
@@ -22,23 +22,17 @@ LerpFn = Callable[[T, T, float], T]
 class Lerpable(Generic[T], Protocol):
     """Can be plugged into standard linear interpolation algorithm."""
 
-    def __add__(self: T, other: T) -> T:
-        ...
+    def __add__(self: T, other: T) -> T: ...
 
-    def __mul__(self: T, other: float) -> T:
-        ...
+    def __mul__(self: T, other: float) -> T: ...
 
-    def __sub__(self: T, other: T) -> T:
-        ...
+    def __sub__(self: T, other: T) -> T: ...
 
 
 def lerp(start, end, quotient):
     """Linear interpolation between two values."""
     if isinstance(start, dict) and isinstance(end, dict):
-        return {
-            key: lerp(value, end[key], quotient)
-            for key, value in start.items()
-        }
+        return {key: lerp(value, end[key], quotient) for key, value in start.items()}
 
     if hasattr(start, "lerp") and callable(start.lerp):
         return start.lerp(end, quotient)
@@ -53,7 +47,7 @@ def lerp(start, end, quotient):
 def animate(
     keyframes: dict[float, T | tuple[T, EasingFn]] | list[T],
     get_quotient: Callable[[], float],
-    lerp: LerpFn = lerp,
+    lerp_fn: LerpFn = lerp,
 ) -> Iterator[T]:
     """
     Get the frame of animation that interpolates between keyframes.
@@ -87,11 +81,14 @@ def animate(
     keys = sorted(keyframes.keys())
     if min(keys) < 0.0 or max(keys) > 1.0:
         raise ValueError("Keyframes must span [0, 1]")
+    first_key = keys[0]
+    last_key = keys[-1]
+    last_key_pos = len(keys) - 1
 
     while True:
         easing = None
         try:
-            key = pygame.math.clamp(get_quotient(), 0.0, 1.0)
+            key = clamp(get_quotient(), 0.0, 1.0)
         except StopIteration:
             return
         key_pos = bisect(keys, key)
@@ -100,15 +97,15 @@ def animate(
         if isinstance(start_frame := keyframes[start_key], tuple):
             start_frame, easing = start_frame
 
-        if start_key == keys[-1]:
+        if start_key == last_key:
             yield cast(T, start_frame)
             continue
 
-        end_key = keys[min(len(keys) - 1, key_pos)]
+        end_key = keys[min(last_key_pos, key_pos)]
         if isinstance(end_frame := keyframes[end_key], tuple):
             end_frame, _ = end_frame
 
-        if end_key == keys[0]:
+        if end_key == first_key:
             yield cast(T, end_frame)
             continue
 
@@ -118,5 +115,4 @@ def animate(
         if easing:
             quotient = easing(quotient)
 
-        yield lerp(start_frame, end_frame, quotient)
-
+        yield lerp_fn(start_frame, end_frame, quotient)
