@@ -1,3 +1,5 @@
+"""Vector utilities."""
+
 import math
 
 from pygame import Vector2
@@ -14,4 +16,3 @@ def angle_between(v1: Vector2, v2: Vector2) -> float:
     [0.0, 45.0, 90.0, 135.0, 180.0, 225.0, 270.0, 315.0]
     """
     return math.degrees(math.atan2((v2.x - v1.x), (v2.y - v1.y))) % 360
-

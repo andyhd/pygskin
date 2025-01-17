@@ -1,3 +1,5 @@
+"""Access cells in a spritesheet."""
+
 from collections.abc import Callable
 from functools import cache
 
@@ -29,4 +31,3 @@ def spritesheet(image: Surface, *args, **kwargs) -> Callable[..., Surface]:
         return image.subsurface(get_cell(*args, **kwargs))
 
     return get_subsurface
-

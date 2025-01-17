@@ -1,3 +1,5 @@
+"""Attribute access to static assets in a directory."""
+
 import inspect
 import json
 from collections import UserDict
@@ -12,37 +14,37 @@ import pygame
 type Asset = Any  # type: ignore
 
 
-def load_font(path: Path):
+def _load_font(path: Path):
     return cache(lambda size=30: pygame.font.Font(path, size))
 
 
-def load_json(path: Path):
+def _load_json(path: Path):
     return json.loads(path.read_text())
 
 
-def load_yaml(path: Path):
+def _load_yaml(path: Path):
     import yaml
 
     return yaml.safe_load(path.read_text())
 
 
 LOADERS: dict[str, Callable] = {
-    **{_: pygame.image.load for _ in {".png", ".jpg", ".jpeg", ".gif"}},
-    **{_: pygame.mixer.Sound for _ in {".wav", ".mp3", ".ogg"}},
-    **{_: load_font for _ in {".ttf"}},
-    **{_: load_yaml for _ in {".yaml", ".yml"}},
-    **{_: load_json for _ in {".json"}},
+    **{_: pygame.image.load for _ in [".png", ".jpg", ".jpeg", ".gif"]},
+    **{_: pygame.mixer.Sound for _ in [".wav", ".mp3", ".ogg"]},
+    **{_: _load_font for _ in [".ttf"]},
+    **{_: _load_yaml for _ in [".yaml", ".yml"]},
+    **{_: _load_json for _ in [".json"]},
 }
 
 
-def get_assets_path_from_caller_frame() -> Path:
+def _get_assets_path_from_caller_frame() -> Path:
     try:
         return Path(inspect.stack()[2].filename).parent / "assets"
     except IndexError:
         return Path("assets")
 
 
-def find_assets_by_name(path: Path, name: str) -> Iterator[Path]:
+def _find_assets_by_name(path: Path, name: str) -> Iterator[Path]:
     yield from sorted(
         (m for m in path.glob(f"{name}*.*") if m.suffix in LOADERS),
         # shortest match first
@@ -50,8 +52,8 @@ def find_assets_by_name(path: Path, name: str) -> Iterator[Path]:
     )
 
 
-def get_asset(path: Path, name: str) -> Asset:
-    match next(find_assets_by_name(path.parent, name), None):
+def _get_asset(path: Path, name: str) -> Asset:
+    match next(_find_assets_by_name(path.parent, name), None):
         case Path() as p if p.is_dir():
             asset = Assets(p)
         case Path() as p:
@@ -84,7 +86,7 @@ class Assets(UserDict):
             case str(s):
                 path = Path(s)
             case None:
-                path = get_assets_path_from_caller_frame()
+                path = _get_assets_path_from_caller_frame()
             case _:
                 raise TypeError(f"Expected Path or str, got {type(path)}")
         if not path.is_dir():
@@ -94,7 +96,7 @@ class Assets(UserDict):
     def __getitem__(self, name: str) -> Asset:
         if not (asset := self.data.get(name)):
             try:
-                asset = self.data[name] = get_asset(self.__dict__["path"] / name, name)
+                asset = self.data[name] = _get_asset(self.__dict__["path"] / name, name)
             except LookupError as e:
                 raise KeyError(name) from e
         return asset
@@ -106,5 +108,6 @@ class Assets(UserDict):
             raise AttributeError from e
 
     def load_all(self) -> None:
+        """Load all assets in the directory into cache."""
         for child in list(self.path.iterdir()):
-            self[child.stem]
+            _ = self[child.stem]

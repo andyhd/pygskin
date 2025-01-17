@@ -40,4 +40,3 @@ class Timer:
     def finished(self) -> bool:
         """Whether the timer has finished."""
         return self.elapsed >= self.duration
-

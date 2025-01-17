@@ -1,3 +1,5 @@
+"""Screen manager for Pygame applications."""
+
 from collections.abc import Callable
 from contextlib import suppress
 from typing import Any
@@ -13,23 +15,31 @@ TransitionTable = dict[ScreenFn, list[Transition]]
 EXIT = object()
 
 
-def screen_manager(transition_table: TransitionTable) -> Callable:
-    sm = statemachine(transition_table)
+def screen_manager(*screens: ScreenFn) -> Callable:
+    """Return a screen manager function."""
 
-    manager = {
-        "screen": next(sm),
-    }
+    def transition_screen(to: ScreenFn) -> ScreenFn | None:
+        if to not in screens:
+            raise ValueError(f"Transition to unknown screen: {to}")
+        return to
 
-    def send(input: Any = EXIT) -> None:
-        if input == EXIT:
-            manager["exit"]()
+    sm = statemachine({screen: [transition_screen] for screen in screens})
+    screen = next(sm)
+
+    def exit_manager(*_) -> None:
+        raise ValueError("exit_manager not set")
+
+    def exit_screen(to: Transition | None = None) -> None:
+        nonlocal screen
+        if to is None:
+            exit_manager()
             return
         with suppress(StopIteration):
-            manager["screen"] = sm.send(input)
+            screen = sm.send(to)
 
-    def _screen_manager(surface: Surface, events: list[Event], exit: Callable):
-        manager.setdefault("exit", exit)
-        manager["screen"](surface, events, send)
+    def _screen_manager(surface: Surface, events: list[Event], exit_: Callable):
+        nonlocal exit_manager
+        exit_manager = exit_
+        screen(surface, events, exit_screen)
 
     return _screen_manager
-

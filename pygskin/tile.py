@@ -1,3 +1,5 @@
+"""Tile an image across a rect."""
+
 from itertools import product
 
 from pygame import Rect
@@ -6,7 +8,10 @@ from pygame.sprite import Sprite
 from pygame.typing import Point
 
 
-def tile(rect: Rect, tile_image: Surface | Sprite,) -> list[tuple[Surface, Point]]:
+def tile(
+    rect: Rect,
+    tile_image: Surface | Sprite,
+) -> list[tuple[Surface, Point]]:
     """Get a Surface.blits blit_sequence for tiling an image across the given rect.
 
     >>> [offset for image, offset in tile(Rect(0, 0, 64, 64), Surface((32, 32)))]
@@ -27,4 +32,3 @@ def tile(rect: Rect, tile_image: Surface | Sprite,) -> list[tuple[Surface, Point
     w, h = tile_rect.size
     offsets = (tile_rect.move(x * w, y * h) for x, y in product((-1, 0, 1), repeat=2))
     return [(image, offset.topleft) for offset in offsets if rect.colliderect(offset)]
-

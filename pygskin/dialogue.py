@@ -1,3 +1,5 @@
+"""A module for parsing and running dialogue scripts."""
+
 from collections import Counter
 from collections import defaultdict
 from collections.abc import Callable
@@ -29,9 +31,11 @@ def iter_dialogue(dialogue: Dialogue, context: dict, **callbacks) -> Iterator[Ac
         A function that performs the next step in the dialogue sequence.
     """
     nodes: dict[str, Generator] = {}
-    callback = lambda name: callbacks.get(name, lambda *_: None)  # noqa: E731
 
-    def change_node(input):
+    def callback(name):
+        return callbacks.get(name, lambda *_: None)
+
+    def change_node(_):
         return nodes.get(context.pop("next_node", None), None)
 
     def eval_expr(expr, extra=None):
@@ -90,35 +94,35 @@ def iter_dialogue(dialogue: Dialogue, context: dict, **callbacks) -> Iterator[Ac
         jump_else = jump(None)
 
         actions = [(_.pop("if", None), make_action(_.popitem())) for _ in node_data]
+        actions += [(None, None)]
 
         # XXX what if the first action has a condition?
-        for (_, action), (condition, next) in pairwise(actions + [(None, None)]):
+        for (_, action), (condition, next_) in pairwise(actions):
             if condition:
                 fork = fork or action
-                transitions[fork].append(jump(next, condition))
+                transitions[fork].append(jump(next_, condition))
                 if action != fork:
                     transitions[action].append(jump_else)
             else:
                 if fork:
-                    jump_else.__defaults__ = (next,)
+                    jump_else.__defaults__ = [next_]
                     jump_else = jump(None)
                     fork = None
-                transitions[action].append(jump(next, condition))
+                transitions[action].append(jump(next_, condition))
 
         nodes[name] = statemachine(transitions)
         return nodes[name], [change_node]
 
     sm = statemachine(dict(make_node(name, node) for name, node in dialogue.items()))
     node = next(sm)
-    input = None
+    input_ = None
     while node:
-        action = node.send(input)
+        action = node.send(input_)
         yield action
-        input = context
+        input_ = context
         if "next_node" in context:
             if context["next_node"] == "end":
                 break
             node.send(statemachine.RESET)  # type: ignore
             node = sm.send(context)
-            input = None
-
+            input_ = None

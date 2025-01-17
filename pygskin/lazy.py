@@ -1,5 +1,8 @@
+"""A lazy object."""
+
 from collections.abc import Callable
 from functools import cache
+from functools import partial
 from typing import Any
 from typing import Generic
 from typing import TypeVar
@@ -29,10 +32,9 @@ class lazy(Generic[T]):  # noqa: N801
     <class 'pygskin.lazy.lazy'>
     """
 
-    def __init__(self, loader: Callable[[], T]) -> None:
-        self._loader = loader
+    def __init__(self, loader: Callable[[], T], *args, **kwargs) -> None:
+        self._loader = cache(partial(loader, *args, **kwargs))
 
-    @cache  # noqa: B019
     def _load(self) -> T:
         return self._loader()
 
@@ -41,15 +43,16 @@ class lazy(Generic[T]):  # noqa: N801
 
     def __setattr__(self, name: str, value: Any) -> None:
         if name.startswith("_load"):
-            return super().__setattr__(name, value)
-        setattr(self._load(), name, value)
+            super().__setattr__(name, value)
+        else:
+            setattr(self._load(), name, value)
 
     def __delattr__(self, name: str) -> None:
         if name.startswith("_load"):
             raise AttributeError(f"cannot delete attribute '{name}'")
         delattr(self._load(), name)
 
-    __members__ = property(lambda self: self.__dir__())
+    __members__ = property(dir)
 
     def __dir__(self) -> list[str]:
         return dir(self._load())

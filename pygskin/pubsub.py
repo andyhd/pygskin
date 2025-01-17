@@ -1,4 +1,5 @@
 """Publish-Subscribe pattern."""
+
 from collections.abc import Callable
 from functools import wraps
 from typing import Any
@@ -54,12 +55,13 @@ def channel(fn: Callable | None = None) -> Callable:
 
     def wrapper(*args, **kwargs) -> Any:
         """Publish the message."""
-        cancelled = False
+        cancel = CANCEL
         for subscriber in subscribers:
-            if not cancelled:
-                cancelled = subscriber(*args, **kwargs) == CANCEL
-        if fn and not cancelled:
-            return fn(*args, **kwargs)
+            if subscriber(*args, **kwargs) == cancel:
+                break
+        else:
+            if fn:
+                fn(*args, **kwargs)
 
     if fn:
         wrapper = wraps(fn)(wrapper)
@@ -68,4 +70,3 @@ def channel(fn: Callable | None = None) -> Callable:
     wrapper.cancel = CANCEL  # type: ignore
 
     return wrapper
-

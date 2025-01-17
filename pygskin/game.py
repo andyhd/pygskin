@@ -1,12 +1,17 @@
-import asyncio
+"""A module for running a game loop with Pygame."""
+
+from asyncio import run
+from asyncio import sleep
 
 import pygame
-import pygame.locals as pg
+import pygame.constants
+from pygame import Window
+from pygame.event import get as get_events
 
 from pygskin import Clock
 
 
-def run_game(window: pygame.Window, fn, fps: int = 60):
+def run_game(window: Window, fn, fps: int = 60):
     """
     Run a game loop with the given function.
 
@@ -19,17 +24,21 @@ def run_game(window: pygame.Window, fn, fps: int = 60):
     surface = window.get_surface()
 
     async def _main_loop():
-        running = [True]
-        quit = running.clear
+        running = True
+        quit_event_type = pygame.constants.QUIT
+
+        def stop():
+            nonlocal running
+            running = False
 
         while running:
             Clock.tick(fps)
-            events = list(pygame.event.get())
-            if any(event.type == pg.QUIT for event in events):
-                quit()
-            fn(surface, events, quit)
+            events = get_events()
+            for event in events:
+                if event.type == quit_event_type:
+                    stop()
+            fn(surface, events, stop)
             window.flip()
-            await asyncio.sleep(0)
+            await sleep(0)
 
-    asyncio.run(_main_loop())
-
+    run(_main_loop())

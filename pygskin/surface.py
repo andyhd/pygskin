@@ -1,3 +1,5 @@
+"""Surface utilities for Pygame."""
+
 import pygame
 from pygame import Rect
 from pygame import Surface
@@ -25,9 +27,9 @@ def rotate_surface(
     center: Vector2 | None = None,
     offset: Vector2 | None = None,
 ) -> tuple[Surface, Rect]:
+    """Rotate a surface and return the rotated surface and its rect."""
     rotated_surface = pygame.transform.rotate(surface, angle)
     offset = offset.rotate(-angle) if offset else Vector2(0)
     center = center or Vector2()
     rect = rotated_surface.get_rect(center=center + offset)
     return rotated_surface, rect
-

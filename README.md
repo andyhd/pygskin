@@ -59,7 +59,7 @@ if direction in Direction.VERTICAL:
 
 ## [`easing` module](pygskin/easing.py)
 A selection of easing functions for use with interpolation. Can be used with the
-`animate` function.
+`animate` and `make_color_gradient` functions.
 
 
 ## [`get_ecs_update_fn` function](pygskin/ecs.py)
@@ -133,9 +133,10 @@ def main_loop(screen, events, quit):
 
 
 ## [`lazy` class](pygskin/lazy.py)
-Lazy loading object proxy.
+Lazy loading object proxy. Works like a partial function application for
+objects.
 ```python
-image = lazy(lambda: pygame.image.load("foo.png"))
+image = lazy(pygame.image.load, "foo.png"))
 screen.blit(image, (0, 0))
 ```
 
@@ -204,27 +205,21 @@ Screen manager state machine.
 ```python
 def main():
     return screen_manager(
-        {
-            show_title: [start_level, enter_level_code],
-            show_code_prompt: [start_level, return_to_titles],
-            play_level: [end_level],
-            show_game_over: [return_to_titles],
-        }
+        show_main_menu,
+        play_level,
     )
 
-def show_main_menu(surface, events, exit):
+def show_main_menu(surface, events, exit_screen):
     surface.blit(assets.main_menu, (0, 0))
     for event in events:
-        if event.type == pygame.KEYDOWN and event.key == pygame.K_RETURN:
-            exit("start_level")
-        if event.type == pygame.KEYDOWN and event.key == pygame.K_c:
-            exit("enter_code")
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_ESCAPE:
+                exit_screen()
+            if event.key == pygame.K_RETURN:
+                exit_screen(to=play_level)
 
-def start_level(input):
-    return play_level if input == "start_level" else None
-
-def enter_level_code(input):
-    return show_code_prompt if input == "enter_code" else None
+def play_level(surface, events, exit_screen):
+    ...
 ```
 
 
