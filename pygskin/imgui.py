@@ -136,7 +136,7 @@ def get_renderer(ui: IMGUI, surface: pygame.Surface, get_styles=None):
 
     def render_fn(widget: Widget, **style) -> Widget:
         frame_info = inspect.stack()[1]
-        widget_id = hash((frame_info.filename, frame_info.lineno))
+        widget_id = hash((frame_info.filename, frame_info.lineno, widget.value))
         if callable(get_styles):
             style = get_styles(widget) | style
         with _get_widget(ui, widget_id, widget, **style) as _widget:
