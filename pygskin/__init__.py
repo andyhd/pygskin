@@ -17,6 +17,7 @@ from pygskin.game import run_game
 from pygskin.gradient import make_color_gradient
 from pygskin.hash import rhash
 from pygskin.hash import unrhash
+from pygskin.input import map_inputs_to_actions
 from pygskin.lazy import lazy
 from pygskin.parallax import scroll_parallax_layers
 from pygskin.pubsub import channel
@@ -62,6 +63,7 @@ __all__ = [
     "lazy",
     "make_color_gradient",
     "make_sprite",
+    "map_inputs_to_actions",
     "rhash",
     "rotate_surface",
     "run_game",
