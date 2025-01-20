@@ -6,14 +6,15 @@ extension-pkg-allow-list = ["pygame"]
 
 [tool.ruff]
 extend-exclude = []
+
+[tool.ruff.lint]
 extend-ignore = ["E203"]
-ignore-init-module-imports = true
 select = ["E", "F", "I", "B", "C4", "SIM", "N", "FLY", "UP"]
 
-[tool.ruff.flake8-bugbear]
+[tool.ruff.lint.flake8-bugbear]
 extend-immutable-calls = []
 
-[tool.ruff.isort]
+[tool.ruff.lint.isort]
 force-single-line = true
 
 [build-system]

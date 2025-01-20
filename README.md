@@ -132,6 +132,27 @@ def main_loop(screen, events, quit):
 ```
 
 
+## [`map_inputs_to_actions` function](pygskin/input.py)
+Map input events to actions. Enables user-defined key bindings.
+```python
+keyboard_controls = {
+    "jump": Event(pg.KEYDOWN, key=pg.K_UP),
+    "duck": Event(pg.KEYDOWN, key=pg.K_DOWN),
+    "quit": Event(pg.KEYDOWN, key=pg.K_ESCAPE),
+}
+for action in map_inputs_to_actions(
+    keyboard_controls,
+    pygame.event.get(),
+):
+    if action == "jump":
+        player.jump()
+    if action == "duck":
+        player.duck()
+    if action == "quit":
+        exit()
+```
+
+
 ## [`lazy` class](pygskin/lazy.py)
 Lazy loading object proxy. Works like a partial function application for
 objects.

@@ -9,12 +9,10 @@ from typing import Any
 
 import pygame
 from pygame.event import Event
-from pygame.locals import (
-    K_BACKSPACE,
-    K_TAB,
-    KEYDOWN,
-    KMOD_SHIFT,
-)
+from pygame.locals import K_BACKSPACE
+from pygame.locals import K_TAB
+from pygame.locals import KEYDOWN
+from pygame.locals import KMOD_SHIFT
 
 from pygskin.rect import add_padding
 from pygskin.rect import get_rect_attrs
