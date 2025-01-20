@@ -15,8 +15,6 @@ from pygskin.ecs import get_ecs_update_fn
 from pygskin.func import bind
 from pygskin.game import run_game
 from pygskin.gradient import make_color_gradient
-from pygskin.hash import rhash
-from pygskin.hash import unrhash
 from pygskin.input import map_inputs_to_actions
 from pygskin.lazy import lazy
 from pygskin.parallax import scroll_parallax_layers
@@ -64,7 +62,6 @@ __all__ = [
     "make_color_gradient",
     "make_sprite",
     "map_inputs_to_actions",
-    "rhash",
     "rotate_surface",
     "run_game",
     "screen_manager",
@@ -75,5 +72,4 @@ __all__ = [
     "statemachine",
     "tile",
     "to_snakecase",
-    "unrhash",
 ]

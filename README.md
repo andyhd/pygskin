@@ -112,14 +112,6 @@ screen.blit(sky_image, (0, 0))
 ```
 
 
-## [`rhash`/`unrhash` functions](pygskin/hash.py)
-Simple reversible hash function for generating unique IDs.
-```python
-id = rhash("foo")
-assert unrhash(id) == "foo"
-```
-
-
 ## [`imgui` module](pygskin/imgui.py)
 Immediate mode GUI.
 ```python
