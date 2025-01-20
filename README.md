@@ -8,7 +8,7 @@ quotients (0.0 - 1.0) to keyframes and a function that returns a quotient, and
 returns an generator that returns frames.
 ```python
 anim = animate([image1, image2], timer.quotient)
-screen.blit(next(anim), (0, 0))
+screen.blit(next(anim))
 ```
 
 
@@ -16,7 +16,7 @@ screen.blit(next(anim), (0, 0))
 Provides attribute access to asset files and batch loading
 ```python
 assets = Assets()
-screen.blit(assets.player, (0, 0))
+screen.blit(assets.player)
 assets.player_spawn_sfx.play()
 ```
 
@@ -108,7 +108,7 @@ if __name__ == '__main__':
 Generate a color gradient between two colors.
 ```python
 sky_image = make_color_gradient(screen.size, "white", "blue")
-screen.blit(sky_image, (0, 0))
+screen.blit(sky_image)
 ```
 
 
@@ -117,10 +117,10 @@ Immediate mode GUI.
 ```python
 gui = imgui.IMGUI()
 
-def main_loop(screen, events, quit):
+def main_loop(screen, events, exit):
     with imgui.render(gui, screen) as render:
         if render(imgui.button("Quit"), center=(100, 200)):
-            break
+            exit()
 ```
 
 
@@ -150,7 +150,7 @@ Lazy loading object proxy. Works like a partial function application for
 objects.
 ```python
 image = lazy(pygame.image.load, "foo.png"))
-screen.blit(image, (0, 0))
+screen.blit(image)
 ```
 
 
@@ -223,7 +223,7 @@ def main():
     )
 
 def show_main_menu(surface, events, exit_screen):
-    surface.blit(assets.main_menu, (0, 0))
+    surface.blit(assets.main_menu)
     for event in events:
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
@@ -240,7 +240,7 @@ def play_level(surface, events, exit_screen):
 Provides grid cell access to a spritesheet image.
 ```python
 get_sprite = spritesheet(pygame.image.load("foo.png"), rows=3, cols=4)
-screen.blit(get_sprite(2, 1), (0, 0))
+screen.blit(get_sprite(2, 1))
 walk_frames = [get_sprite(0, i) for i in range(4)]
 walk_anim = animate(walk_frames, timer.quotient)
 ```
