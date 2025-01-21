@@ -44,20 +44,14 @@ def lerp(start, end, quotient):
     return start
 
 
-def animate(
-    keyframes: dict[float, T | tuple[T, EasingFn]] | list[T],
-    get_quotient: Callable[[], float],
+def get_keyframe_interpolator(
+    keyframes: dict[float, T] | list[T],
     lerp_fn: LerpFn = lerp,
-) -> Iterator[T]:
-    """
-    Get the frame of animation that interpolates between keyframes.
+) -> Callable[[float], T]:
+    """Get a keyframe interpolator function.
 
-    >>> frames = {
-    ...     0.0: 2.0,
-    ...     0.5: 8.0,
-    ...     1.0: 3.0,
-    ... }
-    >>> from pygskin import Timer  # doctest: +ELLIPSIS
+    >>> frames = [2.0, 8.0, 3.0]
+    >>> from pygskin import Timer
     >>> timer = Timer(3000)
     >>> anim = animate(frames, timer.quotient)
     >>> next(anim)
@@ -72,11 +66,20 @@ def animate(
     >>> next(anim)
     3.0
     """
-    if isinstance(keyframes, list):
-        num_frames = len(keyframes)
-        if num_frames < 2:
-            raise ValueError("At least two frames are required")
-        keyframes = {i / (num_frames - 1): keyframes[i] for i in range(num_frames)}
+
+    match keyframes:
+
+        case list():
+            num = len(keyframes)
+            if num < 2:
+                raise ValueError("At least two frames are required")
+            keyframes = {i / (num - 1): keyframes[i] for i in range(num)}
+
+        case dict():
+            pass
+
+        case _:
+            raise TypeError("Invalid keyframes")
 
     keys = sorted(keyframes.keys())
     if min(keys) < 0.0 or max(keys) > 1.0:
@@ -85,29 +88,22 @@ def animate(
     last_key = keys[-1]
     last_key_pos = len(keys) - 1
 
-    while True:
+    def get_frame_at(key):
         easing = None
-        try:
-            key = clamp(get_quotient(), 0.0, 1.0)
-        except StopIteration:
-            return
         key_pos = bisect(keys, key)
-
         start_key = keys[max(0, key_pos - 1)]
         if isinstance(start_frame := keyframes[start_key], tuple):
             start_frame, easing = start_frame
 
         if start_key == last_key:
-            yield cast(T, start_frame)
-            continue
+            return cast(T, start_frame)
 
         end_key = keys[min(last_key_pos, key_pos)]
         if isinstance(end_frame := keyframes[end_key], tuple):
             end_frame, _ = end_frame
 
         if end_key == first_key:
-            yield cast(T, end_frame)
-            continue
+            return cast(T, end_frame)
 
         duration = end_key - start_key
         quotient = (key - start_key) / duration
@@ -115,4 +111,41 @@ def animate(
         if easing:
             quotient = easing(quotient)
 
-        yield lerp_fn(start_frame, end_frame, quotient)
+        return lerp_fn(start_frame, end_frame, quotient)
+
+    return get_frame_at
+
+
+def animate(
+    frames: Callable[[float], T] | dict[float, T] | list[T],
+    get_quotient: Callable[[], float],
+) -> Iterator[T]:
+    """
+    Animate a sequence of frames.
+
+    >>> import math
+    >>> from pygskin import Timer
+    >>> timer = Timer(3000)
+    >>> anim = animate(lambda q: math.sin(q * math.pi), timer.quotient)
+    >>> next(anim)
+    0.0
+    >>> timer.tick(1500)
+    >>> next(anim)
+    1.0
+    >>> timer.tick(750)
+    >>> next(anim)
+    0.7071067811865476
+    >>> timer.tick(750)
+    >>> next(anim)
+    1.2246467991473532e-16
+    """
+    match frames:
+        case dict() | list():
+            get_frame_at = get_keyframe_interpolator(frames)
+        case Callable():
+            get_frame_at = frames
+        case _:
+            raise TypeError("Invalid frames")
+
+    while True:
+        yield get_frame_at(clamp(get_quotient(), 0.0, 1.0))
