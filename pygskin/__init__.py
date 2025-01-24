@@ -4,6 +4,7 @@ from pygskin.animation import EasingFn
 from pygskin.animation import LerpFn
 from pygskin.animation import animate
 from pygskin.assets import Assets
+from pygskin.camera import Camera
 from pygskin.clock import Clock
 from pygskin.clock import Timer
 from pygskin.dialogue import iter_dialogue
@@ -24,12 +25,12 @@ from pygskin.rect import get_rect_attrs
 from pygskin.rect import grid
 from pygskin.screen import ScreenFn
 from pygskin.screen import screen_manager
+from pygskin.shake import shake
 from pygskin.spritesheet import spritesheet
 from pygskin.statemachine import statemachine
 from pygskin.stylesheet import get_styles
 from pygskin.surface import make_sprite
 from pygskin.surface import rotate_surface
-from pygskin.text import snakecase_to_capwords
 from pygskin.text import speech_duration
 from pygskin.text import to_snakecase
 from pygskin.tile import tile
@@ -37,6 +38,7 @@ from pygskin.vector import angle_between
 
 __all__ = [
     "Assets",
+    "Camera",
     "Clock",
     "Direction",
     "EasingFn",
@@ -66,7 +68,7 @@ __all__ = [
     "run_game",
     "screen_manager",
     "scroll_parallax_layers",
-    "snakecase_to_capwords",
+    "shake",
     "speech_duration",
     "spritesheet",
     "statemachine",
