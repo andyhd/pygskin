@@ -21,7 +21,17 @@ assets.player_spawn_sfx.play()
 ```
 
 
-## [`Timer` class](pygskin/timer.py)
+## [`Camera` class](pygskin/camera.py)
+A camera class for scrolling and zooming a surface.
+```python
+camera = Camera(screen.get_rect(), clamp=world_map.get_rect())
+camera.view.fill("black")
+sprite_group.draw(camera)
+camera.zoom = 2.4
+camera.draw(screen)
+```
+
+## [`Timer` class](pygskin/clock.py)
 A countdown timer dataclass. Can be used with the `animate` function.
 ```python
 timer = Timer(3000)  # 3 seconds
@@ -233,6 +243,20 @@ def show_main_menu(surface, events, exit_screen):
 
 def play_level(surface, events, exit_screen):
     ...
+```
+
+
+## [`shake` function](pygskin/shake.py)
+Shake animation generator.
+```python
+rect = Rect(100, 100, 100, 100)
+timer = Timer(3000)
+shake_fn = shake()
+
+def main_loop(screen, events, exit):
+    screen.fill("black")
+    timer.tick()
+    pygame.draw.rect(screen, "red", rect.move(shake_fn(timer.quotient())))
 ```
 
 
