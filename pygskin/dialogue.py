@@ -105,7 +105,7 @@ def iter_dialogue(dialogue: Dialogue, context: dict, **callbacks) -> Iterator[Ac
                     transitions[action].append(jump_else)
             else:
                 if fork:
-                    jump_else.__defaults__ = [next_]
+                    jump_else.__defaults__ = (next_,)
                     jump_else = jump(None)
                     fork = None
                 transitions[action].append(jump(next_, condition))

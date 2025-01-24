@@ -1,0 +1,117 @@
+---
+start:
+- update_context:
+    asked_about_food: 0
+    sheriff_hostility: 0
+    talked_to_sheriff: true
+- sheriff: |
+    Howdee. The name's Sheriff Crook, local sheriff of Thimbleweed Park.
+    I don't remember calling the feds-a-renos.
+    That's what you are? Feds?
+    Hard to miss the government issue suits.
+- next_node: main
+
+main:
+- options:
+  - value: crap
+    if: not _seen
+    text: |
+      Damn straight we're the feds
+  - value: crap
+    text: |
+      Cut the Mayberry crap, we're taking over this case
+  - value: rot
+    text: |
+      How long were you going to let that body rot in the river?
+  - value: hi
+    text: |
+      I'm agent Ray and this is... uh... my partner
+  - if: asked_about_food == 0
+    value: eat
+    text: |
+      Know any place that serves good pie?
+  - if: asked_about_food == 1
+    value: eat
+    text: |
+      Know any place that serves good meatloaf?
+  - if: asked_about_food == 2
+    value: eat
+    text: |
+      Know any place that serves good hamburgers?
+  - if: asked_about_food == 3
+    value: eat
+    text: |
+      Know any place that serves good hotdogs?
+  - if: asked_about_food == 4
+    value: shutdown
+    text: |
+      Why don't you shut the place down?
+
+eat:
+- update_context:
+    asked_about_food: asked_about_food + 1
+- sheriff: |
+    You could try the Diner down the street, but no one eats there...
+- pause: 0.5
+- if: asked_about_food == 1
+  sheriff: |
+    *whispering* Botulism.
+- if: asked_about_food == 2
+  sheriff: |
+    *whispering* E.coli.
+- if: asked_about_food == 3
+  sheriff: |
+    *whispering* Plague.
+- if: asked_about_food == 4
+  sheriff: |
+    *whispering* Butylated Hydroxytoluene.
+- next_node: main
+
+shutdown:
+- sheriff: |
+    Why would I do that? I get a 5% law enforcement discount.
+- next_node: main
+
+next:
+- sheriff: |
+    Looks like you heard about our little murder-reno out by the bridge.
+- reyes: |
+    There's nothing 'little' about murder, sir.
+- pause: 0.5
+- ray: |
+    *sigh*
+    Ignore him... he's new.
+- pause: 0.5
+- sheriff: |
+    No sense in wasting everyone's time-a-reno.
+    This cut-scene is starting to get long and it's only going to get longer.
+    Let's find the coroner and get you on your way.
+- stage_direction:
+    actor: sheriff
+    animation: face_front
+- sheriff: |
+    Wrestling starts at eight.
+- reyes: |
+    I hope he's talking about on TV.
+- next_node: end
+
+rot:
+- sheriff: |
+    The river is so chocked full of chemicals from the old pillow factory...
+    ...it's better off there than in a tub of formaldehyde.
+- stage_direction:
+    actor: sheriff
+    animation: chuckle
+- next_node: next
+
+crap:
+- update_context:
+    sheriff_hostility: sheriff_hostility + 1
+- sheriff: |
+    Whoa... hold your horse-a-renos, no need to get snippy.
+- next_node: next
+
+hi:
+- sheriff: |
+    Nice to meet you, agent-a-renos.
+- next_node: next
