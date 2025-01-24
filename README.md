@@ -313,8 +313,8 @@ rotated_image = rotate_surface(image, angle, center=(0, 0))
 ```
 
 
-## [`to_snakecase` and `snakecase_to_capwords` functions](pygskin/text.py)
-Convert between snake_case and CapWords.
+## [`to_snakecase` function](pygskin/text.py)
+Convert CapWords to snake_case.
 
 
 ## [`speech_duration` function](pygskin/text.py)
