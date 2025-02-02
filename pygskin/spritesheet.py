@@ -30,4 +30,7 @@ def spritesheet(image: Surface, *args, **kwargs) -> Callable[..., Surface]:
     def get_subsurface(*args, **kwargs) -> Surface:
         return image.subsurface(get_cell(*args, **kwargs))
 
+    get_subsurface.columns = kwargs.get("columns", 1)
+    get_subsurface.rows = kwargs.get("rows", 1)
+
     return get_subsurface

@@ -27,6 +27,7 @@ from pygskin.screen import ScreenFn
 from pygskin.screen import screen_manager
 from pygskin.shake import shake
 from pygskin.spritesheet import spritesheet
+from pygskin.spritestack import draw_sprite_stack
 from pygskin.statemachine import statemachine
 from pygskin.stylesheet import get_styles
 from pygskin.surface import make_sprite
@@ -52,6 +53,7 @@ __all__ = [
     "animate",
     "bind",
     "channel",
+    "draw_sprite_stack",
     "easing",
     "filter_entities",
     "get_ecs_update_fn",
