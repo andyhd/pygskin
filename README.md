@@ -270,6 +270,18 @@ walk_anim = animate(walk_frames, timer.quotient)
 ```
 
 
+## [`draw_sprite_stack` function](pygskin/spritestack.py)
+Draw a pseudo-3d sprite using sprite-stacking.
+```python
+draw_sprite_stack(
+    screen,
+    spritesheet(assets.player, rows=1, cols=8),
+    (100, 100),
+    spacing=3,
+)
+```
+
+
 ## [`statemachine` function](pygskin/statemachine.py)
 State machine as generator.
 
