@@ -72,21 +72,25 @@ A selection of easing functions for use with interpolation. Can be used with the
 `animate` and `make_color_gradient` functions.
 
 
-## [`get_ecs_update_fn` function](pygskin/ecs.py)
-An extremely simple ECS implementation.
+## [`Component` class](pygskin/ecs.py)
+A minimal ECS implementation.
 ```python
-@filter_entities(has_velocity)
-def apply_velocity(entity):
-    entity.pos += entity.velocity
+class Velocity(Component[Vector2]): ...
+class Position(Component[Vector2]): ...
 
-ecs_update = get_ecs_update_fn([apply_velocity])
+def apply_velocity_system() -> None:
+    for id, velocity in Velocity.components.items():
+        pos = Position.components[id]
+        pos += velocity
 
 @dataclass
 class Entity:
-    pos: Vector2
-    velocity: Vector2
+    pos: Position = Position()
+    velocity: Velocity = Velocity()
 
-ecs_update([Entity(pos=Vector2(0, 0), velocity=Vector2(1, 1)])
+entities = [Entity(pos=Vector2(0, 0), velocity=Vector2(1, 1)])
+
+apply_velocity_system()
 ```
 
 
