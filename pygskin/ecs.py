@@ -1,59 +1,44 @@
-"""Entity-Component-System (ECS) implementation."""
+"""Provides a Structure-of-Arrays (SoA) Entity-Component-System (ECS).
 
-from collections.abc import Callable
-from collections.abc import Iterable
-from functools import wraps
+Components are stored in separate dicts, which can improve cache locality.
+"""
+
 from typing import Any
-from typing import Concatenate
-from typing import get_type_hints
+from typing import Generic
+from typing import TypeVar
 
-FilterFn = Callable[[Any], bool]
-SystemFn = Callable[Concatenate[Any, ...], None]
+T = TypeVar("T")
 
 
-def filter_entities(filter_fn: FilterFn) -> Callable[[SystemFn], SystemFn]:
-    """Decorator to set filter function for system.
+class Component(Generic[T]):
+    """A component for an entity.
 
-    >>> def has_velocity(entity):
-    ...     return hasattr(entity, "velocity")
-    >>> @filter_entities(has_velocity)
-    ... def apply_velocity(entity):
-    ...     entity.position += entity.velocity
+    >>> class Position(Component[list[int]]): ...
+    >>> class Velocity(Component[list[int]]): ...
+    >>> class Mob:
+    ...     position: Position = Position()
+    ...     velocity: Velocity = Velocity()
+    >>> mob = Mob()
+    >>> mob.position = [0, 0]
+    >>> mob.velocity = [1, 1]
+    >>> def velocity_system() -> None:
+    ...     for id, vel in Velocity.components.items():
+    ...         pos = Position.components[id]
+    ...         pos[0] += vel[0]
+    ...         pos[1] += vel[1]
+    >>> velocity_system()
+    >>> mob.position
+    [1, 1]
     """
 
-    def _filtered_system(system_fn: SystemFn) -> SystemFn:
+    components: dict[int, T] = {}
 
-        @wraps(system_fn)
-        def _system_fn(entity: Any, **kwargs) -> None:
-            if filter_fn(entity):
-                system_fn(entity, **kwargs)
+    def __init_subclass__(cls, **kwargs) -> None:
+        super().__init_subclass__(**kwargs)
+        cls.components = {}
 
-        _system_fn.filtered = True  # type: ignore[attr-defined]
-        return _system_fn
+    def __get__(self, instance: Any, owner=None) -> T:
+        return self.components.get(id(instance))
 
-    return _filtered_system
-
-
-def get_ecs_update_fn(systems: list[SystemFn]) -> Callable:
-    """Return an update function for ECS."""
-    filter_cache: dict[SystemFn, SystemFn] = {}
-
-    def get_filtered_system_fn(system: SystemFn) -> SystemFn:
-        if getattr(system, "filtered", False):
-            return system
-
-        if callable(filter_ := getattr(system, "filter_entities", None)):
-            return filter_entities(filter_)(system)
-
-        entity_type = next(iter(get_type_hints(system).values()))
-        return filter_entities(lambda _: isinstance(_, entity_type))(system)
-
-    def ecs_update(entities: Iterable[Any], **kwargs) -> None:
-        """Update entities with systems."""
-        for system in systems:
-            if not (system_fn := filter_cache.get(system)):
-                system_fn = filter_cache[system] = get_filtered_system_fn(system)
-            for entity in entities:
-                system_fn(entity, entities=entities, **kwargs)
-
-    return ecs_update
+    def __set__(self, instance: Any, value: T) -> None:
+        self.components[id(instance)] = value

@@ -2,20 +2,18 @@
 
 import random
 from collections.abc import Callable
+from dataclasses import dataclass
 from functools import cache
 
 import pygame
 import pygame.locals as pg
 from pygame import Color
-from pygame import FRect
 from pygame import Surface
 from pygame import Vector2
 from pygame.color import THECOLORS
 from pygame.event import Event
-from pygame.sprite import Group
-from pygame.sprite import Sprite
 
-from pygskin import get_ecs_update_fn
+from pygskin import Component
 from pygskin import imgui
 from pygskin import run_game
 from pygskin import screen_manager
@@ -25,6 +23,12 @@ from pygskin.imgui import textfield
 
 gui = imgui.IMGUI()
 shared: dict = {"buffer": list("1000"), "num_balls": "1000"}
+
+
+class Position(Component[Vector2]): ...
+
+
+class Velocity(Component[Vector2]): ...
 
 
 def main():
@@ -53,15 +57,15 @@ def main_menu(surface: Surface, events: list[Event], exit_screen: Callable) -> N
             exit_screen(to=play_game())
 
 
-class Ball(Sprite):
-    """
-    A simple ball sprite.
-    """
+@dataclass
+class Ball:
+    """A simple ball sprite."""
 
-    def __init__(self) -> None:
-        super().__init__()
-        self.vel = Vector2(random.uniform(-6, 6), random.uniform(-6, 6))
-        self.image = Surface((10, 10)).convert_alpha()
+    position: Position = Position()
+    velocity: Velocity = Velocity()
+
+    def __post_init__(self) -> None:
+        self.image = Surface((10, 10), pg.SRCALPHA)
         self.image.fill((0, 0, 0, 0))
         pygame.draw.circle(
             self.image,
@@ -69,22 +73,17 @@ class Ball(Sprite):
             (5, 5),
             5,
         )
-        self.rect = FRect(
-            self.image.get_rect(
-                centerx=random.randint(0, 800),
-                centery=random.randint(0, 600),
-            )
-        )
+        self.position = Vector2(random.randint(0, 800), random.randint(0, 600))
+        self.velocity = Vector2(random.uniform(-6, 6), random.uniform(-6, 6))
 
 
-def move(ball: Ball, *_, **__) -> None:
-    """
-    Move the ball sprite.
-    """
-    if ball.rect is not None:
-        new_pos = ball.rect.topleft + ball.vel
-        ball.rect.x = new_pos.x % 800.0
-        ball.rect.y = new_pos.y % 600.0
+def apply_velocity() -> None:
+    """Apply velocity to entities."""
+    for id, vel in Velocity.components.items():
+        pos = Position.components[id]
+        pos += vel
+        pos.x %= 800
+        pos.y %= 600
 
 
 @cache
@@ -92,17 +91,13 @@ def play_game():
     """
     Return the play game screen function.
     """
-    ecs_update = get_ecs_update_fn([move])
-    entities = Group()
+    entities = [Ball() for _ in range(int(shared["num_balls"]))]
 
     def _play(surface: Surface, events: list[Event], exit_screen: Callable) -> None:
-        if not entities:
-            entities.add(*(Ball() for _ in range(shared["num_balls"])))
-
-        ecs_update(entities)
+        apply_velocity()
 
         surface.fill((0, 0, 0))
-        entities.draw(surface)
+        surface.blits((ball.image, ball.position) for ball in entities)
 
         for event in events:
             if event.type == pg.KEYDOWN:

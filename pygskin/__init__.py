@@ -9,10 +9,7 @@ from pygskin.clock import Clock
 from pygskin.clock import Timer
 from pygskin.dialogue import iter_dialogue
 from pygskin.direction import Direction
-from pygskin.ecs import FilterFn
-from pygskin.ecs import SystemFn
-from pygskin.ecs import filter_entities
-from pygskin.ecs import get_ecs_update_fn
+from pygskin.ecs import Component
 from pygskin.func import bind
 from pygskin.game import run_game
 from pygskin.gradient import make_color_gradient
@@ -41,12 +38,11 @@ __all__ = [
     "Assets",
     "Camera",
     "Clock",
+    "Component",
     "Direction",
     "EasingFn",
-    "FilterFn",
     "LerpFn",
     "ScreenFn",
-    "SystemFn",
     "Timer",
     "add_padding",
     "angle_between",
@@ -55,8 +51,6 @@ __all__ = [
     "channel",
     "draw_sprite_stack",
     "easing",
-    "filter_entities",
-    "get_ecs_update_fn",
     "get_rect_attrs",
     "get_styles",
     "grid",
