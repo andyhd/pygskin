@@ -17,7 +17,7 @@ def draw_sprite_stack(
     rotate_slice = cache(lambda i: rotate(sprite_stack(i, 0), angle))
     center = Vector2(center)
 
-    surface.fblits((
+    surface.blits((
         (slice, slice.get_rect(center=center - (0, i * spacing)))
         for i, slice in enumerate(map(rotate_slice, range(sprite_stack.columns)))
     ))
