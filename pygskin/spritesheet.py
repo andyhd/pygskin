@@ -3,6 +3,7 @@
 from collections.abc import Callable
 from functools import cache
 
+import pygame
 from pygame import Surface
 
 from pygskin.rect import grid
@@ -24,11 +25,15 @@ def spritesheet(image: Surface, *args, **kwargs) -> Callable[..., Surface]:
     True
     """
 
+    scale_factor = kwargs.pop("scale_by", 1)
     get_cell = grid(image.get_rect(), *args, **kwargs)
 
     @cache
     def get_subsurface(*args, **kwargs) -> Surface:
-        return image.subsurface(get_cell(*args, **kwargs))
+        return pygame.transform.scale_by(
+            image.subsurface(get_cell(*args, **kwargs)),
+            scale_factor,
+        )
 
     get_subsurface.columns = kwargs.get("columns", 1)
     get_subsurface.rows = kwargs.get("rows", 1)

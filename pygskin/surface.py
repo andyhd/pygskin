@@ -1,6 +1,7 @@
 """Surface utilities for Pygame."""
 
 import pygame
+from pygame import FRect
 from pygame import Rect
 from pygame import Surface
 from pygame import Vector2
@@ -17,7 +18,7 @@ def make_sprite(image: Surface, **kw) -> Sprite:
     if scale := kw.get("scale"):
         image = pygame.transform.scale_by(image, scale)
     spr.image = image
-    spr.rect = image.get_rect(**get_rect_attrs(kw))
+    spr.rect = FRect(image.get_rect(**get_rect_attrs(kw)))
     return spr
 
 

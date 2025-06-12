@@ -75,20 +75,15 @@ A selection of easing functions for use with interpolation. Can be used with the
 ## [`Component` class](pygskin/ecs.py)
 A minimal ECS implementation.
 ```python
-class Velocity(Component[Vector2]): ...
-class Position(Component[Vector2]): ...
+@system
+def apply_velocity_system(pos: Vector2, velocity: Vector2) -> None:
+    pos += velocity
 
-def apply_velocity_system() -> None:
-    for id, velocity in Velocity.components.items():
-        pos = Position.components[id]
-        pos += velocity
+class Mob(Entity):
+    pos: Vector2 = lambda: Vector2(0, 0)
+    velocity: Vector2 = lambda: Vector2(0, 0)
 
-@dataclass
-class Entity:
-    pos: Position = Position()
-    velocity: Velocity = Velocity()
-
-entities = [Entity(pos=Vector2(0, 0), velocity=Vector2(1, 1)])
+mob = Mob(velocity=Vector2(3, 1))
 
 apply_velocity_system()
 ```
