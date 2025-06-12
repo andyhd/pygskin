@@ -12,6 +12,7 @@ from typing import Any
 import pygame
 
 type Asset = Any  # type: ignore
+type Loader = Callable[[Path], Asset]
 
 
 def _load_font(path: Path):
@@ -26,6 +27,12 @@ def _load_yaml(path: Path):
     import yaml
 
     return yaml.safe_load(path.read_text())
+
+
+def load_music(path: Path):
+    with path.open("rb") as f:
+        pygame.mixer.music.load(f)
+    return pygame.mixer.music
 
 
 LOADERS: dict[str, Callable] = {
@@ -52,12 +59,18 @@ def _find_assets_by_name(path: Path, name: str) -> Iterator[Path]:
     )
 
 
-def _get_asset(path: Path, name: str) -> Asset:
+def _get_asset(
+    path: Path,
+    name: str,
+    loader: Loader | None = None,
+) -> Asset:
     match next(_find_assets_by_name(path.parent, name), None):
         case Path() as p if p.is_dir():
             asset = Assets(p)
         case Path() as p:
-            asset = LOADERS[p.suffix](p)
+            if not callable(loader):
+                loader = LOADERS[p.suffix]
+            asset = loader(p)
         case None:
             raise LookupError(f"Asset not found: {path / name}")
     return asset
@@ -93,19 +106,26 @@ class Assets(UserDict):
             raise ValueError(f"Path does not exist: {path}")
         self.__dict__["path"] = path
 
-    def __getitem__(self, name: str) -> Asset:
+    def load(self, name: str, loader: Loader | None = None) -> Asset:
         if not (asset := self.data.get(name)):
-            try:
-                asset = self.data[name] = _get_asset(self.__dict__["path"] / name, name)
-            except LookupError as e:
-                raise KeyError(name) from e
+            asset = self.data[name] = _get_asset(
+                self.__dict__["path"] / name,
+                name,
+                loader
+            )
         return asset
+
+    def __getitem__(self, name: str) -> Asset:
+        try:
+            return self.load(name)
+        except LookupError as e:
+            raise KeyError(name) from e
 
     def __getattr__(self, name: str) -> Asset:
         try:
-            return self[name]
-        except KeyError as e:
-            raise AttributeError from e
+            return self.load(name)
+        except LookupError as e:
+            raise AttributeError(f"Asset not found: {name}") from e
 
     def load_all(self) -> None:
         """Load all assets in the directory into cache."""

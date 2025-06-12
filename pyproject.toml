@@ -4,6 +4,10 @@ extend-exclude = ""
 [tool.pylint]
 extension-pkg-allow-list = ["pygame"]
 
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "--doctest-modules"
+
 [tool.ruff]
 extend-exclude = []
 

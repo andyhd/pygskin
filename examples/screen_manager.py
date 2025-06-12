@@ -2,7 +2,6 @@
 
 import random
 from collections.abc import Callable
-from dataclasses import dataclass
 from functools import cache
 
 import pygame
@@ -13,22 +12,18 @@ from pygame import Vector2
 from pygame.color import THECOLORS
 from pygame.event import Event
 
-from pygskin import Component
+from pygskin import Clock
+from pygskin import Entity
 from pygskin import imgui
 from pygskin import run_game
 from pygskin import screen_manager
+from pygskin import system
 from pygskin.imgui import button
 from pygskin.imgui import label
 from pygskin.imgui import textfield
 
 gui = imgui.IMGUI()
-shared: dict = {"buffer": list("1000"), "num_balls": "1000"}
-
-
-class Position(Component[Vector2]): ...
-
-
-class Velocity(Component[Vector2]): ...
+shared: dict = {"buffer": list("10000"), "num_balls": "10000"}
 
 
 def main():
@@ -57,14 +52,14 @@ def main_menu(surface: Surface, events: list[Event], exit_screen: Callable) -> N
             exit_screen(to=play_game())
 
 
-@dataclass
-class Ball:
+class Ball(Entity):
     """A simple ball sprite."""
 
-    position: Position = Position()
-    velocity: Velocity = Velocity()
+    position: Vector2 = lambda: Vector2(random.randint(0, 800), random.randint(0, 600))
+    velocity: Vector2 = lambda: Vector2(random.uniform(-6, 6), random.uniform(-6, 6))
 
-    def __post_init__(self) -> None:
+    def __init__(self) -> None:
+        super().__init__()
         self.image = Surface((10, 10), pg.SRCALPHA)
         self.image.fill((0, 0, 0, 0))
         pygame.draw.circle(
@@ -73,17 +68,14 @@ class Ball:
             (5, 5),
             5,
         )
-        self.position = Vector2(random.randint(0, 800), random.randint(0, 600))
-        self.velocity = Vector2(random.uniform(-6, 6), random.uniform(-6, 6))
 
 
-def apply_velocity() -> None:
+@system
+def apply_velocity(position: Vector2, velocity: Vector2) -> None:
     """Apply velocity to entities."""
-    for id, vel in Velocity.components.items():
-        pos = Position.components[id]
-        pos += vel
-        pos.x %= 800
-        pos.y %= 600
+    position += velocity
+    position.x %= 800
+    position.y %= 600
 
 
 @cache
@@ -91,24 +83,23 @@ def play_game():
     """
     Return the play game screen function.
     """
-    entities = [Ball() for _ in range(int(shared["num_balls"]))]
+    balls = []
 
     def _play(surface: Surface, events: list[Event], exit_screen: Callable) -> None:
-        apply_velocity()
+        if not balls:
+            balls.extend(Ball() for _ in range(int(shared["num_balls"])))
 
         surface.fill((0, 0, 0))
-        surface.blits((ball.image, ball.position) for ball in entities)
 
-        for event in events:
-            if event.type == pg.KEYDOWN:
-                if event.key == pg.K_ESCAPE:
-                    exit_screen()
+        apply_velocity()
 
-                else:
-                    exit_screen(to=main_menu)
+        surface.blits([(ball.image, ball.position) for ball in balls])
 
+        with imgui.render(gui, surface) as render:
+            render(label(f"FPS: {Clock.get_fps():.1f}"), font_size=30, topleft=(10, 10))
+        
     return _play
 
 
 if __name__ == "__main__":
-    run_game(pygame.Window("Testing", (800, 600)), main())
+    run_game(pygame.Window("Testing", (800, 600)), main(), fps=0)

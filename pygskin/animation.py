@@ -1,5 +1,6 @@
 """A simple animation system."""
 
+import math
 from bisect import bisect
 from collections.abc import Callable
 from collections.abc import Iterator
@@ -9,6 +10,7 @@ from typing import TypeVar
 from typing import cast
 from typing import runtime_checkable
 
+from pygame import Surface
 from pygame.math import clamp
 
 T = TypeVar("T")
@@ -142,10 +144,20 @@ def animate(
     match frames:
         case dict() | list():
             get_frame_at = get_keyframe_interpolator(frames)
-        case Callable():
+        case _ if callable(frames):
             get_frame_at = frames
         case _:
             raise TypeError("Invalid frames")
 
     while True:
         yield get_frame_at(clamp(get_quotient(), 0.0, 1.0))
+
+
+def get_spritesheet_frames(
+    sheet: Callable[..., Surface],
+    frames: list[tuple[int, int]]
+) -> Callable[[float], Surface]:
+    def get_sprite(quotient: float) -> Surface:
+        frame_index = math.ceil(quotient * len(frames)) % len(frames)
+        return sheet(*frames[frame_index])
+    return get_sprite
