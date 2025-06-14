@@ -105,6 +105,14 @@ class EntityMeta(ABCMeta):
                 self.eid = cls._next_entity_id
                 cls._next_entity_id += 1
 
+            eid_component = Component[int]()
+            eid_component.name = "eid"
+            eid_component.__set__(self, self.eid)
+
+            entity_component = Component[EntityT]()
+            entity_component.name = "entity"
+            entity_component.__set__(self, self)
+
             for name, component in ns.items():
                 if not isinstance(component, Component):
                     continue
@@ -137,15 +145,19 @@ def get_components(*names: str) -> Iterator[tuple[Any, ...]]:
         yield from (tuple(array.get(eid) for array in arrays) for eid in entity_ids)
 
 
-def map_components(func: Callable[..., None], **context) -> None:
+def map_components(func: Callable[..., None], **context) -> Iterator[Any]:
     """Map a function over all entities with the given components.
     
     The function will be called with the components of all entities that have all the
     requested components.
     """
-    component_names = [p.name for p in signature(func).parameters.values()]
+    component_names = [
+        p.name
+        for p in signature(func).parameters.values()
+        if p.kind == p.POSITIONAL_OR_KEYWORD
+    ]
     for components in get_components(*component_names):
-        func(*components, **context)
+        yield func(*components, **context)
 
 
 def system(func: Callable[..., None]) -> Callable[[], None]:
@@ -156,7 +168,7 @@ def system(func: Callable[..., None]) -> Callable[[], None]:
     """
     @wraps(func)
     def wrapper(**context):
-        map_components(func, **context)
+        list(map_components(func, **context))
     
     wrapper.is_system = True
     return wrapper
