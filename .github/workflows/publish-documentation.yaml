@@ -16,7 +16,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: 3.13
 
@@ -28,7 +28,7 @@ jobs:
       - run: |
           pdoc pygskin --output-dir docs
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-pages-artifact@v3
         with:
           path: docs
 
