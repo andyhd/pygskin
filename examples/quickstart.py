@@ -68,6 +68,7 @@ def game_loop(screen, events, quit_game):
     # Draw player
     pg.draw.rect(screen, "red", player.rect)
 
-# Create the game window and start the game
-window = pg.Window(size=(800, 600), title="Pygskin Platformer Demo")
-pygskin.run_game(window, game_loop) 
+if __name__ == "__main__":
+    # Create the game window and start the game
+    window = pg.Window(size=(800, 600), title="Pygskin Platformer Demo")
+    pygskin.run_game(window, game_loop) 
