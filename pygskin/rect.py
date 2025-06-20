@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from collections.abc import Sequence
+from enum import Enum
 from typing import overload
 
 from pygame import Rect
@@ -16,6 +17,9 @@ RECT_ATTRS = """
     size width height
     w h
 """.strip().split()
+
+Align = Enum("Align", "left center right")
+VAlign = Enum("VAlign", "top middle bottom")
 
 
 def get_rect_attrs(d: dict) -> dict:
@@ -42,13 +46,35 @@ def add_padding(
             except StopIteration:
                 pass
             return (
-                rect.inflate(left + right, top + bottom).move_to(
-                    top=rect.top - top, left=rect.left - left
+                rect.move_to(
+                    left=rect.left - left,
+                    top=rect.top - top,
+                    width=rect.width + left + right,
+                    height=rect.height + top + bottom,
                 ),
-                rect.move(left, top),
+                rect,
             )
 
     raise ValueError("Invalid padding")
+
+
+def align_rect(rect: Rect, container: Rect, align: str, valign: str) -> None:
+    """Align a rectangle within a container rectangle."""
+    match Align[align]:
+        case Align.left:
+            rect.left = container.left
+        case Align.right:
+            rect.right = container.right
+        case Align.center:
+            rect.centerx = container.centerx
+
+    match VAlign[valign]:
+        case VAlign.top:
+            rect.top = container.top
+        case VAlign.bottom:
+            rect.bottom = container.bottom
+        case VAlign.middle:
+            rect.centery = container.centery
 
 
 def grid(

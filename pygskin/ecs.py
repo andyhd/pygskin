@@ -61,7 +61,8 @@ class Component[T]:
         self.name = name
 
     def __set__(self, instance: EntityT, value: T) -> None:
-        EntityMeta._components.setdefault(self.name, SparseArray())[instance.eid] = value
+        component_array = EntityMeta._components.setdefault(self.name, SparseArray())
+        component_array[instance.eid] = value
         get_component_arrays.cache_clear()
 
     def __get__(self, instance: EntityT | None, owner: type[EntityT]) -> T:
@@ -95,7 +96,7 @@ class EntityMeta(ABCMeta):
 
         original_init = ns.get("__init__")
 
-        def __init__(self: EntityT, *args: Any, **kwargs: Any) -> None:
+        def init(self: EntityT, *args: Any, **kwargs: Any) -> None:
             if original_init:
                 original_init(self, *args, **kwargs)
 
@@ -125,7 +126,7 @@ class EntityMeta(ABCMeta):
                 else:
                     raise TypeError(f"Missing required component '{name}'")
 
-        ns["__init__"] = __init__
+        ns["__init__"] = init
         return super().__new__(cls, name, bases, ns)
 
 
@@ -145,30 +146,43 @@ def get_components(*names: str) -> Iterator[tuple[Any, ...]]:
         yield from (tuple(array.get(eid) for array in arrays) for eid in entity_ids)
 
 
-def map_components(func: Callable[..., None], **context) -> Iterator[Any]:
+@cache
+def get_component_names(func: Callable[..., None]) -> tuple[str, ...]:
+    """Get component names from function signature.
+    
+    This is cached to avoid repeated signature parsing.
+    """
+    return tuple(
+        p.name
+        for p in signature(func).parameters.values()
+        if p.kind == p.POSITIONAL_OR_KEYWORD
+    )
+
+
+def map_components(func: Callable, **context) -> Iterator[Any]:
     """Map a function over all entities with the given components.
     
     The function will be called with the components of all entities that have all the
     requested components.
     """
-    component_names = [
-        p.name
-        for p in signature(func).parameters.values()
-        if p.kind == p.POSITIONAL_OR_KEYWORD
-    ]
+    component_names = get_component_names(func)
     for components in get_components(*component_names):
         yield func(*components, **context)
 
 
-def system(func: Callable[..., None]) -> Callable[[], None]:
+def system(func: Callable) -> Callable[[], None]:
     """Decorate a function to run as a system.
     
     The function will be called with the components of all entities that have all the
     requested components.
     """
+    # Cache the component names at decoration time
+    component_names = get_component_names(func)
+    
     @wraps(func)
     def wrapper(**context):
-        list(map_components(func, **context))
+        for components in get_components(*component_names):
+            func(*components, **context)
     
     wrapper.is_system = True
     return wrapper

@@ -9,11 +9,11 @@ from pygame import Event
 from pygame.key import name as key_name
 from pygame.window import Window
 
-from pygskin import imgui
+from pygskin import IMGUI
+from pygskin import button
+from pygskin import label
 from pygskin import map_inputs_to_actions
 from pygskin import run_game
-from pygskin.imgui import button
-from pygskin.imgui import label
 
 DEFAULT_KEY_CONTROLS = {
     "up": Event(pg.KEYDOWN, key=pg.K_UP),
@@ -28,7 +28,7 @@ def main():
     """
     Customizable controls example.
     """
-    gui = imgui.IMGUI()
+    gui = IMGUI()
     text = ""
     action_map = DEFAULT_KEY_CONTROLS.copy()
     get_actions = partial(map_inputs_to_actions, action_map)
@@ -53,8 +53,8 @@ def main():
                     waiting_for_input = None
                     break
 
-        with imgui.render(gui, screen) as render:
-            render(imgui.label("Set Controls"), font_size=40, center=(400, 100))
+        with gui(screen, events) as render:
+            render(label("Set Controls"), font_size=40, center=(400, 100))
 
             for i, (action, event) in enumerate(action_map.items()):
                 if (
@@ -69,7 +69,7 @@ def main():
                         center=(500, 200 + i * 50),
                     )
 
-            render(imgui.label(text), font_size=30, center=(400, 500))
+            render(label(text), font_size=30, center=(400, 500))
 
     return main_loop
 

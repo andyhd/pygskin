@@ -5,6 +5,7 @@ import json
 from collections import UserDict
 from collections.abc import Callable
 from collections.abc import Iterator
+from contextlib import suppress
 from functools import cache
 from pathlib import Path
 from typing import Any
@@ -131,3 +132,7 @@ class Assets(UserDict):
         """Load all assets in the directory into cache."""
         for child in list(self.path.iterdir()):
             _ = self[child.stem]
+
+    def unload(self, name: str) -> None:
+        with suppress(KeyError):
+            del self.data[name]

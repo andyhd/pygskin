@@ -9,19 +9,20 @@ from pygame import Window
 from pygame.color import THECOLORS
 from pygame.sprite import Group
 
+from pygskin import IMGUI
 from pygskin import Assets
+from pygskin import Camera
 from pygskin import Direction
 from pygskin import Timer
 from pygskin import animate
-from pygskin import imgui
+from pygskin import label
 from pygskin import make_sprite
 from pygskin import run_game
 from pygskin import shake
 from pygskin import tile
-from pygskin.camera import Camera
 
 assets = Assets()
-gui = imgui.IMGUI()
+gui = IMGUI()
 
 
 def test_camera() -> None:
@@ -93,9 +94,9 @@ def test_camera() -> None:
         if direction:
             camera.rect.move_ip(direction.vector * (10 / camera.zoom))
 
-        with imgui.render(gui, screen) as render:
+        with gui(screen, events) as render:
             render(
-                imgui.label(
+                label(
                     f"Camera test\n"
                     f"Zoom: {camera.zoom:.2f}\n"
                     f"Position: {camera.rect.topleft}",
@@ -105,10 +106,8 @@ def test_camera() -> None:
                 topleft=(10, 10),
             )
             render(
-                imgui.label(
-                    "Arrow keys: move camera, "
-                    "Q: zoom in, "
-                    "A: zoom out, SPACE: shake",
+                label(
+                    "Arrow keys: move camera, Q: zoom in, A: zoom out, SPACE: shake",
                 ),
                 align="left",
                 bottomleft=(10, 590),

@@ -5,15 +5,14 @@ from functools import partial
 import pygame
 from pygame.event import Event
 
-from pygskin import imgui
-from pygskin.game import run_game
-from pygskin.imgui import button
-from pygskin.imgui import label
-from pygskin.imgui import radio
-from pygskin.imgui import textfield
-from pygskin.stylesheet import get_styles
+from pygskin import IMGUI
+from pygskin import button
+from pygskin import get_styles
+from pygskin import label
+from pygskin import radio
+from pygskin import run_game
+from pygskin import textfield
 
-gui = imgui.IMGUI()
 stylesheet = partial(
     get_styles,
     {
@@ -32,13 +31,7 @@ stylesheet = partial(
         },
     },
 )
-
-
-@contextmanager
-def render_gui(surface: pygame.Surface, events: list[Event]):
-    gui.events = events
-    with imgui.render(gui, surface, stylesheet) as render:
-        yield render
+gui = IMGUI(stylesheet)
 
 
 def main() -> Callable[[pygame.Surface, list[Event], Callable], None]:
@@ -54,14 +47,14 @@ def main() -> Callable[[pygame.Surface, list[Event], Callable], None]:
     def _main(surface: pygame.Surface, events: list[Event], exit) -> None:
         surface.fill((0, 0, 0))
 
-        with render_gui(surface, events) as gui:
-            gui(label(foo), font_size=40, center=(400, 100))
-            gui(textfield(bar), size=(400, 50), center=(400, 200))
-            if gui(button("Click me"), size=(200, 50), center=(400, 300)):
+        with gui(surface, events) as render:
+            render(label(foo), font_size=40, center=(400, 100))
+            render(textfield(bar), size=(400, 50), center=(400, 200))
+            if render(button("Click me"), size=(200, 50), center=(400, 300)):
                 foo[:] = bar[:]
 
             def option(i: int, text: str, checked: bool):
-                return gui(radio(text), checked=checked, x=400, y=400 + 50 * i)
+                return render(radio(text), checked=checked, x=400, y=400 + 50 * i)
 
             for i, (text, value) in enumerate(choices.items()):
                 if option(i, text, checked=shared["choice"] == value):

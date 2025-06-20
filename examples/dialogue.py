@@ -1,13 +1,14 @@
 import pygame
 import pygame.locals as pg
 
+from pygskin import IMGUI
 from pygskin import Assets
-from pygskin import imgui
+from pygskin import label
 from pygskin import run_game
 from pygskin.dialogue import iter_dialogue
 
 assets = Assets()
-gui = imgui.IMGUI()
+gui = IMGUI()
 
 
 def main():
@@ -51,16 +52,16 @@ def main():
                 elif action := next(dialogue, None):
                     action()
 
-        with imgui.render(gui, surface) as render:
+        with gui(surface, events) as render:
             render(
-                imgui.label("".join(text)),
+                label("".join(text)),
                 topleft=(20, 20),
                 size=(760, 260),
                 align="left",
                 valign="top",
             )
             render(
-                imgui.label("\n".join(str(_) for _ in context.items())),
+                label("\n".join(str(_) for _ in context.items())),
                 topleft=(20, 320),
                 size=(760, 260),
                 align="left",

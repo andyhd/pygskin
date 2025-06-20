@@ -190,7 +190,6 @@ speed, and gravity) to see how they affect the gameplay!
 """
 
 from pygskin import easing
-from pygskin import imgui
 from pygskin.animation import EasingFn
 from pygskin.animation import LerpFn
 from pygskin.animation import animate
@@ -209,11 +208,17 @@ from pygskin.ecs import system
 from pygskin.func import bind
 from pygskin.game import run_game
 from pygskin.gradient import make_color_gradient
+from pygskin.imgui import IMGUI
+from pygskin.imgui import button
+from pygskin.imgui import label
+from pygskin.imgui import radio
+from pygskin.imgui import textfield
 from pygskin.input import map_inputs_to_actions
 from pygskin.lazy import lazy
 from pygskin.parallax import scroll_parallax_layers
 from pygskin.pubsub import channel
 from pygskin.rect import add_padding
+from pygskin.rect import align_rect
 from pygskin.rect import get_rect_attrs
 from pygskin.rect import grid
 from pygskin.screen import ScreenFn
@@ -239,14 +244,17 @@ __all__ = [
     "Direction",
     "EasingFn",
     "Entity",
+    "IMGUI",
     "LerpFn",
     "ScreenFn",
     "SparseArray",
     "Timer",
     "add_padding",
+    "align_rect",
     "angle_between",
     "animate",
     "bind",
+    "button",
     "channel",
     "circle_path",
     "draw_sprite_stack",
@@ -255,15 +263,16 @@ __all__ = [
     "get_spritesheet_frames",
     "get_styles",
     "grid",
-    "imgui",
     "iter_dialogue",
     "kill_entity",
+    "label",
     "lazy",
     "load_music",
     "make_color_gradient",
     "make_sprite",
     "map_components",
     "map_inputs_to_actions",
+    "radio",
     "rotate_surface",
     "run_game",
     "screen_manager",
@@ -273,6 +282,7 @@ __all__ = [
     "spritesheet",
     "statemachine",
     "system",
+    "textfield",
     "tile",
     "to_snakecase",
 ]
