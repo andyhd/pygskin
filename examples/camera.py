@@ -9,12 +9,12 @@ from pygame import Window
 from pygame.color import THECOLORS
 from pygame.sprite import Group
 
-from pygskin import IMGUI
 from pygskin import Assets
 from pygskin import Camera
 from pygskin import Direction
 from pygskin import Timer
 from pygskin import animate
+from pygskin import imgui
 from pygskin import label
 from pygskin import make_sprite
 from pygskin import run_game
@@ -22,7 +22,7 @@ from pygskin import shake
 from pygskin import tile
 
 assets = Assets()
-gui = IMGUI()
+gui = imgui()
 
 
 def test_camera() -> None:

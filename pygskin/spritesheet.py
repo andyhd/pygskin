@@ -26,13 +26,19 @@ def spritesheet(image: Surface, *args, **kwargs) -> Callable[..., Surface]:
     """
 
     scale_factor = kwargs.pop("scale_by", 1)
+    flip_x = kwargs.pop("flip_x", False)
+    flip_y = kwargs.pop("flip_y", False)
     get_cell = grid(image.get_rect(), *args, **kwargs)
 
     @cache
     def get_subsurface(*args, **kwargs) -> Surface:
-        return pygame.transform.scale_by(
-            image.subsurface(get_cell(*args, **kwargs)),
-            scale_factor,
+        return pygame.transform.flip(
+            pygame.transform.scale_by(
+                image.subsurface(get_cell(*args, **kwargs)),
+                scale_factor,
+            ),
+            flip_x,
+            flip_y,
         )
 
     get_subsurface.columns = kwargs.get("columns", 1)

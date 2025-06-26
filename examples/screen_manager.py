@@ -12,17 +12,17 @@ from pygame import Vector2
 from pygame.color import THECOLORS
 from pygame.event import Event
 
-from pygskin import IMGUI
 from pygskin import Clock
 from pygskin import Entity
 from pygskin import button
+from pygskin import imgui
 from pygskin import label
 from pygskin import run_game
 from pygskin import screen_manager
 from pygskin import system
 from pygskin import textfield
 
-gui = IMGUI()
+gui = imgui()
 shared: dict = {"buffer": list("10000"), "num_balls": "10000"}
 
 

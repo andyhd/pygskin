@@ -9,8 +9,8 @@ from pygame import Event
 from pygame.key import name as key_name
 from pygame.window import Window
 
-from pygskin import IMGUI
 from pygskin import button
+from pygskin import imgui
 from pygskin import label
 from pygskin import map_inputs_to_actions
 from pygskin import run_game
@@ -28,7 +28,7 @@ def main():
     """
     Customizable controls example.
     """
-    gui = IMGUI()
+    gui = Imgui()
     text = ""
     action_map = DEFAULT_KEY_CONTROLS.copy()
     get_actions = partial(map_inputs_to_actions, action_map)
