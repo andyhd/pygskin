@@ -1,17 +1,16 @@
 from collections.abc import Callable
-from contextlib import contextmanager
 from functools import partial
 
 import pygame
 from pygame.event import Event
 
-from pygskin import IMGUI
 from pygskin import button
 from pygskin import get_styles
 from pygskin import label
 from pygskin import radio
 from pygskin import run_game
 from pygskin import textfield
+from pygskin.imgui import imgui
 
 stylesheet = partial(
     get_styles,
@@ -31,7 +30,7 @@ stylesheet = partial(
         },
     },
 )
-gui = IMGUI(stylesheet)
+gui = imgui(stylesheet)
 
 
 def main() -> Callable[[pygame.Surface, list[Event], Callable], None]:

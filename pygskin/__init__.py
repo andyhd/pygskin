@@ -208,8 +208,8 @@ from pygskin.ecs import system
 from pygskin.func import bind
 from pygskin.game import run_game
 from pygskin.gradient import make_color_gradient
-from pygskin.imgui import IMGUI
 from pygskin.imgui import button
+from pygskin.imgui import imgui
 from pygskin.imgui import label
 from pygskin.imgui import radio
 from pygskin.imgui import textfield
@@ -244,7 +244,6 @@ __all__ = [
     "Direction",
     "EasingFn",
     "Entity",
-    "IMGUI",
     "LerpFn",
     "ScreenFn",
     "SparseArray",
@@ -263,6 +262,7 @@ __all__ = [
     "get_spritesheet_frames",
     "get_styles",
     "grid",
+    "imgui",
     "iter_dialogue",
     "kill_entity",
     "label",

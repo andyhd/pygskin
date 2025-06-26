@@ -1,14 +1,14 @@
 import pygame
 import pygame.locals as pg
 
-from pygskin import IMGUI
 from pygskin import Assets
+from pygskin import imgui
 from pygskin import label
 from pygskin import run_game
 from pygskin.dialogue import iter_dialogue
 
 assets = Assets()
-gui = IMGUI()
+gui = imgui()
 
 
 def main():

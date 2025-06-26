@@ -106,10 +106,14 @@ def match(selector: Selector, obj) -> bool:
     False
     """
     obj_type = getattr(obj, "type", obj.__class__.__name__)
+    obj_id = getattr(obj, "id", None)
+    obj_classes = getattr(obj, "classes", [])
+    obj_pseudo_classes = getattr(obj, "pseudo_classes", [])
     return (
         (not selector.tag or selector.tag == "*" or obj_type == selector.tag)
-        and (not selector.id or obj.id == selector.id)
-        and all(cls in obj.classes for cls in selector.classes)
+        and (not selector.id or obj_id == selector.id)
+        and all(cls in obj_classes for cls in selector.classes)
+        and all(pcls in obj_pseudo_classes for pcls in selector.pseudo_classes)
         and all(
             getattr(obj, key, None) == value
             for key, value in selector.attributes.items()

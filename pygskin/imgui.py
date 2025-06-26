@@ -1,11 +1,132 @@
+"""Immediate Mode GUI (IMGUI) system for Pygskin.
+
+## Overview
+
+Provides lightweight UI widgets that can be created and rendered each frame.
+The system handles state management, event processing, and rendering automatically.
+
+## Tutorial
+
+### 1. Basic Setup
+
+First, import the necessary components:
+
+```python
+import pygame
+from pygskin import imgui, button, label
+```
+
+Initialize Pygame and create a window:
+
+```python
+window = pygame.Window("IMGUI Demo", (800, 600))
+```
+
+### 2. Creating a Simple UI
+
+Create a basic game loop with a label and button:
+
+```python
+ui = imgui()
+
+def game_loop(surface, events, quit_game):
+    surface.fill("black")
+
+    with ui(surface, events) as render:
+        render(label("Hello World!"), center=(400, 100))
+        if render(button("Click me"), center=(400, 200)):
+            print("Button clicked!")
+
+    if any(e.type == pygame.KEYDOWN and e.key == pygame.K_ESCAPE for e in events):
+        quit_game()
+
+pygskin.run_game(window, game_loop)
+```
+
+### 3. Handling User Input
+
+Create interactive widgets like text fields:
+
+```python
+ui = imgui()
+text = list("Edit me")  # Textfields use mutable lists
+
+def game_loop(surface, events, quit_game):
+    surface.fill("black")
+
+    with ui(surface, events) as render:
+        render(label("Enter text:"), center=(400, 100))
+        render(textfield(text), size=(300, 40), center=(400, 150))
+        render(label(''.join(text)), center=(400, 200))
+```
+
+### 4. Styling Widgets
+
+Apply custom styles using a stylesheet:
+
+```python
+from pygskin import get_styles
+
+def stylesheet(widget):
+    return get_styles(
+        {
+            "button": {
+                "background_color": "blue",
+                "border_color": "white",
+                "font_size": 24
+            },
+            "label": {
+                "color": "green",
+                "font_size": 32
+        },
+        widget,
+    )
+
+gui = imgui(stylesheet)
+
+def game_loop(surface, events, quit_game):
+    surface.fill("black")
+    with gui(surface, events) as render:
+        render(label("Styled Text"), center=(400, 100))
+        render(button("Styled Button"), center=(400, 200))
+```
+
+### 5. Advanced Widgets
+
+Create radio button groups:
+
+```python
+ui = imgui()
+choices = {"Option 1": 1, "Option 2": 2, "Option 3": 3}
+selected = {"value": 1}
+
+def game_loop(surface, events, quit_game):
+    surface.fill("black")
+    with ui(surface, events) as render:
+        for i, (text, value) in enumerate(choices.items()):
+            if render(radio(text),
+                     checked=(selected["value"] == value),
+                     x=400, y=200 + i*50):
+                selected["value"] = value
+```
+
+## API Reference
+
+Available Widgets:
+- button(): Clickable button
+- label(): Text display
+- textfield(): Editable text input
+- radio(): Selectable radio button
+"""
+
 import inspect
 from collections.abc import Callable
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from dataclasses import field
-from enum import Enum
 from enum import IntFlag
+from enum import StrEnum
 from typing import Any
 
 import pygame
@@ -20,21 +141,45 @@ from pygskin.rect import add_padding
 from pygskin.rect import align_rect
 from pygskin.rect import get_rect_attrs
 
-Flag = IntFlag(
-    "Flag",
-    "CLICKABLE EDITABLE FOCUSABLE SCROLLABLE HAS_BORDER HAS_BACKGROUND HAS_SHADOW",
-)
-PseudoClass = Enum("PseudoClass", "HOVER ACTIVE FOCUS")
+
+class Flag(IntFlag):
+    CLICKABLE = 1
+    EDITABLE = 2
+    FOCUSABLE = 4
+    SCROLLABLE = 8
+    HAS_BORDER = 16
+    HAS_BACKGROUND = 32
+    HAS_SHADOW = 64
 
 
-def get_widget_id() -> int:
-    """Generate a unique widget ID based on the position in the source code."""
-    frame_info = inspect.stack()[2]
-    return hash((frame_info.filename, tuple(frame_info.positions)))
+class PseudoClass(StrEnum):
+    """Widget visual states.
+
+    Attributes:
+        HOVER: Mouse is over widget
+        ACTIVE: Widget is being clicked/activated
+        FOCUS: Widget has keyboard focus
+    """
+
+    HOVER = "hover"
+    ACTIVE = "active"
+    FOCUS = "focus"
 
 
 @dataclass
 class Widget:
+    """UI widget container.
+
+    Args:
+        value: The widget's current value
+        type: Widget type ('button', 'label', etc.)
+        flags: Behavior flags (Flag enum)
+        id: Optional unique identifier
+        classes: CSS-like class names for styling
+        rect: Widget position and size
+        pseudo_classes: Current visual states
+    """
+
     value: Any
     type: str
     flags: int = 0
@@ -133,10 +278,33 @@ def draw_radio_button(surface: Surface, widget: Widget, **style) -> None:
 
 
 def label(text: str | list[str], **kwargs) -> Widget:
+    """Create a text label widget.
+
+    Args:
+        text: Label text
+        **kwargs: Additional widget properties
+
+    Returns:
+        Widget: Configured label widget
+    """
     return Widget(text, type="label", **kwargs)
 
 
 def button(text: str | list[str], **kwargs) -> Widget:
+    """Create a clickable button widget.
+
+    Args:
+        text: Button label text
+        **kwargs: Additional widget properties
+
+    Example:
+    ```python
+    render(button("Submit", id="submit-btn"))
+    ```
+
+    Returns:
+        Widget: Configured button widget
+    """
     return Widget(
         text,
         flags=Flag.CLICKABLE | Flag.FOCUSABLE | Flag.HAS_BORDER | Flag.HAS_BACKGROUND,
@@ -146,6 +314,15 @@ def button(text: str | list[str], **kwargs) -> Widget:
 
 
 def textfield(value: list[str], **kwargs) -> Widget:
+    """Create an editable text input widget.
+
+    Args:
+        value: Initial text content (as mutable list)
+        **kwargs: Additional widget properties
+
+    Returns:
+        Widget: Configured textfield widget
+    """
     return Widget(
         value,
         flags=Flag.EDITABLE | Flag.FOCUSABLE | Flag.HAS_BORDER | Flag.HAS_BACKGROUND,
@@ -155,6 +332,15 @@ def textfield(value: list[str], **kwargs) -> Widget:
 
 
 def radio(value: str | list[str], **kwargs) -> Widget:
+    """Create a radio button widget.
+
+    Args:
+        value: Radio button label
+        **kwargs: Additional widget properties
+
+    Returns:
+        Widget: Configured radio button widget
+    """
     return Widget(
         value,
         flags=Flag.CLICKABLE | Flag.FOCUSABLE | Flag.HAS_BACKGROUND,
@@ -163,97 +349,105 @@ def radio(value: str | list[str], **kwargs) -> Widget:
     )
 
 
-class IMGUI:
-    def __init__(self, get_styles: Callable | None = None):
-        self.active: int | None = None
-        self.hot: int | None = None
-        self.focus: int | None = None
-        self.tabindex_prev: int | None = None
-        self.events: list[Event] = []
-        self.get_styles = get_styles
+@dataclass
+class UIState:
+    active: int | None = None
+    focus: int | None = None
+    tabindex_prev: int | None = None
+    events: list[Event] = field(default_factory=list)
 
-    @contextmanager
-    def __call__(self, surface: Surface, events: list[Event]) -> Iterator[Callable]:
-        self.surface = surface
-        self.events = events
 
-        yield self.render
-
-        self.hot = None
-        if not pygame.mouse.get_pressed()[0]:
-            self.active = None
-        elif self.active is None:
-            self.active = -1
-
-    def render(self, widget: Widget, **style) -> Widget:
-        widget_id = get_widget_id()
-
-        if callable(self.get_styles):
-            style = self.get_styles(widget) | style
-
-        rect = widget.rect
-        if not rect:
-            rect = Rect(0, 0, 0, 0)
-            if text := get_widget_text(widget):
-                font = style.setdefault("font", Font(None, style.get("font_size", 30)))
-                rect.size = font.size(text)
-            if padding := style.get("padding"):
-                rect, _ = add_padding(rect, padding)
+def update_widget_rect(widget: Widget, style: dict) -> None:
+    rect = widget.rect or Rect(0, 0, 0, 0)
+    if not rect:
+        if text := get_widget_text(widget):
+            font = style.setdefault("font", Font(None, style.get("font_size", 30)))
+            rect.size = font.size(text)
+        if padding := style.get("padding"):
+            rect, _ = add_padding(rect, padding)
         if rect_kwargs := get_rect_attrs(style):
-            rect = widget.rect = rect.move_to(**rect_kwargs)
+            widget.rect = rect.move_to(**rect_kwargs)
 
-        triggered = False
 
-        if rect.collidepoint(pygame.mouse.get_pos()):
-            self.hot = widget_id
-            widget.pseudo_classes.add(PseudoClass.HOVER)
+def click(event: Event) -> bool:
+    return event.type == pg.MOUSEBUTTONDOWN and event.button == 1
 
-        mousedown_events = [
-            e for e in self.events if e.type == pg.MOUSEBUTTONDOWN and e.button == 1
-        ]
-        if self.hot == widget_id and mousedown_events:
-            self.active = widget_id
+
+def handle_mouse_events(widget: Widget, widget_id: int, ui: UIState) -> bool:
+    if widget.rect.collidepoint(pygame.mouse.get_pos()):
+        widget.pseudo_classes.add(PseudoClass.HOVER)
+
+        if clicks := list(filter(click, ui.events)):
+            ui.active = widget_id
             widget.pseudo_classes.add(PseudoClass.ACTIVE)
             if widget.flags & Flag.CLICKABLE:
-                triggered = True
-                for e in mousedown_events:
-                    # prevent event being processed by other widgets
-                    e.button = 0
+                [setattr(e, "button", 0) for e in clicks]
+                return True
 
-        if widget.flags & Flag.FOCUSABLE and self.focus is None:
-            self.focus = widget_id
+    return False
 
-        if self.focus == widget_id:
-            widget.pseudo_classes.add(PseudoClass.FOCUS)
 
-            for event in self.events:
-                if event.type == pg.KEYDOWN:
-                    if event.key == pg.K_TAB:
-                        self.focus = (
-                            self.tabindex_prev if event.mod & pg.KMOD_SHIFT else None
-                        )
-                        # prevent event being processed by other widgets
-                        event.key = 0
+def handle_keyboard_events(widget: Widget, ui: UIState) -> None:
+    for e in [e for e in ui.events if e.type == pg.KEYDOWN]:
+        if e.key == pg.K_TAB:
+            ui.focus = ui.tabindex_prev if e.mod & pg.KMOD_SHIFT else None
+            e.key = 0
 
-                    if widget.flags & Flag.EDITABLE:
-                        if event.key == pg.K_BACKSPACE:
-                            widget.value[:] = widget.value[:-1]
-                            triggered = True
+        if widget.flags & Flag.EDITABLE:
+            if e.key == pg.K_BACKSPACE:
+                widget.value[:] = widget.value[:-1]
+            elif 32 <= e.key < 127 and len(widget.value) < 30:
+                widget.value.append(e.unicode)
 
-                        if 32 <= event.key < 127 and len(widget.value) < 30:
-                            widget.value.append(event.unicode)
-                            triggered = True
 
-        draw_widget(widget, surface=self.surface, **style)
+def manage_focus(widget: Widget, widget_id: int, ui: UIState) -> None:
+    if widget.flags & Flag.FOCUSABLE and ui.focus is None:
+        ui.focus = widget_id
 
-        if widget.flags & Flag.FOCUSABLE:
-            self.tabindex_prev = widget_id
+    if ui.focus == widget_id:
+        widget.pseudo_classes.add(PseudoClass.FOCUS)
+        handle_keyboard_events(widget, ui)
 
-        return triggered
+    if widget.flags & Flag.FOCUSABLE:
+        ui.tabindex_prev = widget_id
+
+
+def imgui(get_styles: Callable | None = None) -> Callable:
+    """
+    Get a context manager for rendering immediate mode GUI widgets and handling events.
+    """
+    ui = UIState()
+    get_styles = get_styles if callable(get_styles) else lambda _: {}
+
+    @contextmanager
+    def imgui_ctx(surface: Surface, events: list[Event]) -> Iterator[Callable]:
+        ui.events = events
+
+        def render(widget: Widget, **style) -> bool:
+            # get caller location to ensure unique widget IDs
+            frames = inspect.getouterframes(inspect.currentframe())
+            caller = next(frm for frm in frames if frm.filename != __file__)
+            widget_id = hash((caller.filename, caller.lineno, id(widget.value)))
+
+            style = get_styles(widget) | style
+            update_widget_rect(widget, style)
+            triggered = handle_mouse_events(widget, widget_id, ui)
+            manage_focus(widget, widget_id, ui)
+            draw_widget(widget, surface=surface, **style)
+            return triggered
+
+        yield render
+
+        if not pygame.mouse.get_pressed()[0]:
+            ui.active = None
+        elif ui.active is None:
+            ui.active = -1
+
+    return imgui_ctx
 
 
 __all__ = [
-    "IMGUI",
+    "imgui",
     "button",
     "label",
     "radio",
