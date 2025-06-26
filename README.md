@@ -1,7 +1,7 @@
 # Pygskin
 
 [![python](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
-![language](https://img.shield.io/github/languages/top/andyhd/pygskin)
+![language](https://img.shields.io/github/languages/top/andyhd/pygskin)
 
 A lightweight, modern game development library built on top of Pygame.
 
