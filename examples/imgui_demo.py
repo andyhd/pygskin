@@ -2,8 +2,10 @@ from collections.abc import Callable
 from functools import partial
 
 import pygame
+import pygame.locals as pg
 from pygame.event import Event
 
+from pygskin import Direction
 from pygskin import button
 from pygskin import get_styles
 from pygskin import label
@@ -15,6 +17,13 @@ from pygskin.imgui import imgui
 stylesheet = partial(
     get_styles,
     {
+        "*": {
+            "padding": [20],
+            "spacing": 20,
+            "align": "center",
+            "valign": "middle",
+            "grow": Direction.VERTICAL | Direction.HORIZONTAL,
+        },
         "label": {
             "color": "green",
             "font_size": 40,
@@ -25,8 +34,15 @@ stylesheet = partial(
             "font_size": 30,
             "align": "left",
         },
+        "button": {
+            "border_width": 1,
+        },
         "button:hover": {
             "border_color": "green",
+        },
+        "radio": {
+            "align": "left",
+            "background_color": "#00ff0040",
         },
     },
 )
@@ -46,18 +62,28 @@ def main() -> Callable[[pygame.Surface, list[Event], Callable], None]:
     def _main(surface: pygame.Surface, events: list[Event], exit) -> None:
         surface.fill((0, 0, 0))
 
+        if any(e.type == pg.KEYDOWN and e.key == pg.K_ESCAPE for e in events):
+            exit()
+
         with gui(surface, events) as render:
-            render(label(foo), font_size=40, center=(400, 100))
-            render(textfield(bar), size=(400, 50), center=(400, 200))
-            if render(button("Click me"), size=(200, 50), center=(400, 300)):
+            render(label(foo))
+            render(textfield(bar), max_width=400)
+            if render(button("Click me")):
                 foo[:] = bar[:]
 
-            def option(i: int, text: str, checked: bool):
-                return render(radio(text), checked=checked, x=400, y=400 + 50 * i)
+            with render.vertically():
+                for text, value in choices.items():
+                    if render(radio(text), checked=shared["choice"] == value):
+                        print(f"You selected {text} ({value})")
+                        shared["choice"] = value
 
-            for i, (text, value) in enumerate(choices.items()):
-                if option(i, text, checked=shared["choice"] == value):
-                    shared["choice"] = value
+            with render.horizontally():
+                if render(button("Yes")):
+                    print("You clicked Yes!")
+                if render(button("No")):
+                    print("You clicked No!")
+                if render(button("Maybe")):
+                    print("You clicked Maybe!")
 
     return _main
 
