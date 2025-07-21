@@ -28,7 +28,7 @@ def main():
     """
     Customizable controls example.
     """
-    gui = Imgui()
+    gui = imgui()
     text = ""
     action_map = DEFAULT_KEY_CONTROLS.copy()
     get_actions = partial(map_inputs_to_actions, action_map)
